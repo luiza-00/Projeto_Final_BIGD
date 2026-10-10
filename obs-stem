@@ -1,0 +1,279 @@
+!pip install google-cloud-bigquery
+!pip install pandas
+!pip install pandas-gbq
+!pip install sqlalchemy psycopg2-binary
+!pip install sqlalchemy psycopg2-binary
+from google.colab import auth
+from google.cloud import bigquery
+import json
+from google.oauth2 import service_account
+from google.cloud import bigquery
+from sqlalchemy import create_engine
+import pandas as pd
+
+from google.colab import files
+
+
+files.upload()
+
+
+auth.authenticate_user()
+
+
+client = bigquery.Client()
+
+with open('obs-stem-786f63af6b3f.json') as f:
+    cred = json.load(f)
+
+
+print(cred["project_id"])
+
+credentials = service_account.Credentials.from_service_account_file(
+    "obs-stem-786f63af6b3f.json"
+)
+
+
+client = bigquery.Client(
+    credentials=credentials,
+    project=credentials.project_id
+)
+
+
+HOST = "obsstem-obssteam.d.aivencloud.com"
+PORT = "25373"
+DATABASE = "defaultdb"
+USER = "avnadmin"
+PASSWORD = "AVNS_UbmH_gSaG42SBrMFq5o"
+
+
+engine = create_engine(
+    f"postgresql+psycopg2://{USER}:{PASSWORD}@{HOST}:{PORT}/{DATABASE}"
+)
+
+query = """
+SELECT *
+FROM `basedosdados.br_bd_diretorios_brasil.municipio`
+LIMIT 10
+"""
+
+
+query = """
+SELECT DISTINCT
+    id_area_geral,
+    nome_area_geral
+FROM `basedosdados.br_inep_censo_educacao_superior.curso`
+ORDER BY nome_area_geral
+"""
+
+
+areas = client.query(query).to_dataframe()
+
+
+query1 = """
+WITH dicionario_tipo_organizacao_academica AS (
+    SELECT
+        chave AS chave_tipo_organizacao_academica,
+        valor AS descricao_tipo_organizacao_academica
+    FROM `basedosdados.br_inep_censo_educacao_superior.dicionario`
+    WHERE nome_coluna = 'tipo_organizacao_academica'
+      AND id_tabela = 'curso'
+)
+
+
+SELECT
+    dados.id_curso,
+    dados.nome_curso,
+    dados.id_ies,
+    dados.sigla_uf,
+    dados.id_municipio,
+    municipio.nome AS nome_municipio,
+
+
+    dados.id_area_geral,
+    dados.nome_area_geral,
+
+
+    descricao_tipo_organizacao_academica,
+
+
+    dados.quantidade_ingressantes_feminino,
+    dados.quantidade_ingressantes_masculino,
+
+
+    dados.quantidade_matriculas_feminino,
+    dados.quantidade_matriculas_masculino,
+
+
+    dados.quantidade_concluintes_feminino,
+    dados.quantidade_concluintes_masculino,
+
+
+    dados.quantidade_ingressantes_financiamento,
+
+
+    dados.quantidade_matriculas_reserva_vaga_social_renda_familiar,
+
+
+    dados.quantidade_concluintes_reserva_vaga_social_renda_familiar
+
+
+FROM `basedosdados.br_inep_censo_educacao_superior.curso` dados
+
+
+LEFT JOIN `basedosdados.br_bd_diretorios_brasil.municipio` municipio
+    ON dados.id_municipio = municipio.id_municipio
+
+
+LEFT JOIN dicionario_tipo_organizacao_academica
+    ON dados.tipo_organizacao_academica = chave_tipo_organizacao_academica
+
+
+WHERE dados.id_area_geral IN ('05','5','06','6','07','7')
+
+
+"""
+df_stem1 = client.query(query1).to_dataframe()
+
+df_stem1.head()
+
+
+df_stem1.to_sql(
+    "raw_censo_stem",
+    engine,
+    if_exists="replace",
+    index=False,
+    chunksize=5000
+)
+
+
+dim_municipio = (
+    df[
+        [
+            "id_municipio",
+            "nome_municipio",
+            "sigla_uf"
+        ]
+    ]
+    .drop_duplicates()
+)
+
+
+dim_municipio.head()
+
+
+dim_curso = (
+    df[
+        [
+            "id_curso",
+            "nome_curso",
+            "id_area_geral",
+            "nome_area_geral"
+        ]
+    ]
+    .drop_duplicates()
+)
+
+
+dim_curso.head()
+
+
+fato_stem = df[
+    [
+        "id_curso",
+        "id_municipio",
+
+
+        "quantidade_ingressantes_feminino",
+        "quantidade_ingressantes_masculino",
+
+
+        "quantidade_matriculas_feminino",
+        "quantidade_matriculas_masculino",
+
+
+        "quantidade_concluintes_feminino",
+        "quantidade_concluintes_masculino",
+
+
+        "quantidade_ingressantes_financiamento",
+
+
+        "quantidade_matriculas_reserva_vaga_social_renda_familiar",
+
+
+        "quantidade_concluintes_reserva_vaga_social_renda_familiar"
+    ]
+]
+
+
+dim_municipio.to_sql(
+    "dim_municipio",
+    engine,
+    if_exists="replace",
+    index=False
+)
+
+
+dim_curso.to_sql(
+    "dim_curso",
+    engine,
+    if_exists="replace",
+    index=False
+)
+
+
+fato_stem.to_sql(
+    "fato_stem",
+    engine,
+    if_exists="replace",
+    index=False,
+    chunksize=5000
+)
+
+
+pd.read_sql("""
+SELECT *
+FROM dim_municipio
+LIMIT 5
+""", engine)
+
+
+pd.read_sql("""
+SELECT *
+FROM dim_curso
+LIMIT 5
+""", engine)
+
+
+pd.read_sql("""
+SELECT *
+FROM fato_stem
+LIMIT 5
+""", engine)
+
+
+fato_stem.dtypes
+
+
+dim_curso.dtypes
+
+
+dim_municipio.dtypes
+
+
+pd.read_sql(
+    "SELECT COUNT(*) AS total FROM fato_stem",
+    engine
+)
+
+
+pd.read_sql(
+    "SELECT COUNT(*) AS total FROM dim_curso",
+    engine
+)
+
+
+pd.read_sql(
+    "SELECT COUNT(*) AS total FROM dim_municipio",
+    engine
+)
