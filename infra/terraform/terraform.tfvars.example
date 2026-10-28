@@ -1,0 +1,9 @@
+# Copie para terraform.tfvars e preencha (terraform.tfvars está no .gitignore).
+# Estes valores não são secretos; o token do Aiven vai na variável de ambiente AIVEN_TOKEN.
+
+aiven_project   = "obssteam"   # deduzido do host obsstem-obssteam.d.aivencloud.com
+pg_service_name = "obsstem"
+pg_plan         = "free-1-1gb" # CONFERIR no Aiven Console
+pg_cloud        = "do-nyc"     # CONFERIR no Aiven Console
+
+gcp_project_id = "obs-stem"
