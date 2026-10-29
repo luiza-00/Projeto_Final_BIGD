@@ -119,6 +119,9 @@ def tratar(df: pd.DataFrame) -> pd.DataFrame:
         df[col] = df[col].astype("string").str.strip()
     df["id_area_geral"] = df["id_area_geral"].astype("string").str.zfill(2)
     df["sigla_uf"] = df["sigla_uf"].str.upper()
+    invalido = ~df["id_municipio"].str.fullmatch(r"\d{7}", na=False) | df["nome_municipio"].isna()
+    df.loc[invalido, ["id_municipio", "nome_municipio", "sigla_uf"]] = pd.NA
+    print(f"[tratamento] {int(invalido.sum())} linhas com município inválido ou ausente")
     df["nome_curso"] = df["nome_curso"].str.upper()
 
     df = df.rename(columns=COLUNAS_QTD)
@@ -144,9 +147,10 @@ def modelar(df: pd.DataFrame) -> dict[str, pd.DataFrame]:
     dim_curso = (
         recente[["id_curso", "nome_curso", "id_ies", "tipo_organizacao_academica",
                  "id_area_geral", "nome_area_geral"]]
-        .drop_duplicates("id_curso")
-        .reset_index(drop=True)
+        .groupby("id_curso", as_index=False, sort=False)
+        .first()
     )
+    dim_curso["nome_curso"] = dim_curso["nome_curso"].fillna("NAO INFORMADO")
 
     chaves = ["ano", "id_curso"]
     qtds = list(COLUNAS_QTD.values())

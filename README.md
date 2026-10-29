@@ -69,6 +69,7 @@ Base dos Dados (BigQuery)  →  ETL em Python/Pandas  →  PostgreSQL (Aiven)
 | Quantidades nulas | Mantidas como `NULL` (inteiro anulável) | Diferencia "não informado" de "zero" |
 | Possível duplicidade curso × ano | Agregação (soma) na fato | Garante unicidade da chave primária |
 | Curso sem `id_curso` | Registro removido | Não pode ser relacionado à dimensão |
+| Município inválido (ex.: código `0`) ou sem correspondência no diretório | `id_municipio` fica nulo na fato e não entra na dimensão | O curso continua contabilizado, sem criar um município inexistente |
 | Tabela intermediária `raw_censo_stem` | Removida | Duplicava os dados e ocupava espaço do plano gratuito |
 
 As transformações estão em `etl/etl_stem.py` (funções `tratar` e `modelar`).
