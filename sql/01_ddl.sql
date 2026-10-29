@@ -1,5 +1,3 @@
--- Modelo dimensional (esquema estrela). Grão da fato: curso x ano.
-
 DROP TABLE IF EXISTS raw_censo_stem;
 DROP TABLE IF EXISTS fato_stem;
 DROP TABLE IF EXISTS dim_curso;
