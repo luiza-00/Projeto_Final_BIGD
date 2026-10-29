@@ -77,9 +77,10 @@ def extrair(client: bigquery.Client, ano_inicio: int) -> pd.DataFrame:
     colunas = ",\n        ".join(f"c.{c}" for c in COLUNAS_QTD)
     query = f"""
     WITH dic_org AS (
-        SELECT chave, valor
+        SELECT chave, ANY_VALUE(valor) AS valor
         FROM `basedosdados.br_inep_censo_educacao_superior.dicionario`
         WHERE id_tabela = 'curso' AND nome_coluna = 'tipo_organizacao_academica'
+        GROUP BY chave
     )
     SELECT
         c.ano,
@@ -154,10 +155,9 @@ def modelar(df: pd.DataFrame) -> dict[str, pd.DataFrame]:
 
     chaves = ["ano", "id_curso"]
     qtds = list(COLUNAS_QTD.values())
-    fato = (
-        df.groupby(chaves, as_index=False)
-        .agg({"id_municipio": "first", **{c: lambda s: s.sum(min_count=1) for c in qtds}})
-    )
+    duplicadas = df.duplicated(chaves).sum()
+    print(f"[modelagem] {duplicadas} linhas repetidas de curso x ano descartadas")
+    fato = df.drop_duplicates(chaves)[chaves + ["id_municipio"] + qtds].reset_index(drop=True)
     for c in qtds:
         fato[c] = fato[c].astype("Int64")
 

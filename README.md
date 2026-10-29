@@ -67,7 +67,8 @@ Base dos Dados (BigQuery)  →  ETL em Python/Pandas  →  PostgreSQL (Aiven)
 | Códigos sem descrição | Join com o dicionário (`tipo_organizacao_academica`) | Torna o dado legível para análise |
 | Nomes com variação de grafia | `strip` + maiúsculas; na dimensão fica a versão **mais recente** | Evita duplicar o mesmo curso ou município na dimensão |
 | Quantidades nulas | Mantidas como `NULL` (inteiro anulável) | Diferencia "não informado" de "zero" |
-| Possível duplicidade curso × ano | Agregação (soma) na fato | Garante unicidade da chave primária |
+| Dicionário com mais de uma linha por código (uma por período) multiplicava os cursos na junção | Dicionário agrupado por código antes da junção (`GROUP BY chave`) | Evita duplicar cursos e inflar as quantidades |
+| Possível duplicidade curso × ano restante | Mantido um registro por curso × ano | Garante a chave primária sem somar valores repetidos |
 | Curso sem `id_curso` | Registro removido | Não pode ser relacionado à dimensão |
 | Município inválido (ex.: código `0`) ou sem correspondência no diretório | `id_municipio` fica nulo na fato e não entra na dimensão | O curso continua contabilizado, sem criar um município inexistente |
 | Tabela intermediária `raw_censo_stem` | Removida | Duplicava os dados e ocupava espaço do plano gratuito |
