@@ -1,5 +1,4 @@
-"""ETL Observatório STEM: BigQuery (Base dos Dados) -> Pandas -> PostgreSQL (Aiven)."""
-
+import importlib.util
 import os
 from pathlib import Path
 
@@ -11,7 +10,7 @@ from sqlalchemy.engine import URL
 RAIZ = Path(__file__).resolve().parent.parent
 DDL_PATH = RAIZ / "sql" / "01_ddl.sql"
 
-AREAS_STEM = ("05", "06", "07")  # CINE Brasil: ciências/matemática, computação/TIC, engenharias
+AREAS_STEM = ("05", "06", "07")
 
 COLUNAS_QTD = {
     "quantidade_ingressantes_feminino": "qtd_ingressantes_feminino",
@@ -27,15 +26,10 @@ COLUNAS_QTD = {
 
 
 def em_colab() -> bool:
-    try:
-        import google.colab  # noqa: F401
-        return True
-    except ImportError:
-        return False
+    return importlib.util.find_spec("google.colab") is not None
 
 
 def segredo(nome: str, padrao: str | None = None) -> str:
-    """Lê do .env ou dos Secrets do Colab."""
     valor = os.getenv(nome)
     if valor is None and em_colab():
         from google.colab import userdata
@@ -170,7 +164,7 @@ def modelar(df: pd.DataFrame) -> dict[str, pd.DataFrame]:
 
 def carregar(tabelas: dict[str, pd.DataFrame], engine) -> None:
     ddl = DDL_PATH.read_text(encoding="utf-8")
-    with engine.begin() as conn:  # transação única
+    with engine.begin() as conn:
         conn.exec_driver_sql(ddl)
         for nome in ["dim_municipio", "dim_curso", "fato_stem"]:
             tabelas[nome].to_sql(nome, conn, if_exists="append", index=False,
