@@ -1,23 +1,15 @@
-# Segredos
 .env
 *.json
-!**/package.json
 *.pem
 *.key
 
-# Terraform: state e variáveis contêm senhas
 **/.terraform/*
 *.tfstate
 *.tfstate.*
 *.tfvars
 !*.tfvars.example
-crash.log
-.terraform.lock.hcl.bak
 
-# Dados gerados pelo ETL (podem ser recriados executando etl/etl_stem.py)
 data/
-
-# Python
 __pycache__/
 *.pyc
 .venv/

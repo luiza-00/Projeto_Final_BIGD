@@ -14,7 +14,7 @@ output "pg_user" {
 }
 
 output "pg_password" {
-  description = "Senha (exibida apenas com: terraform output -raw pg_password)"
+  description = "Senha do banco"
   value       = aiven_pg.obs_stem.service_password
   sensitive   = true
 }

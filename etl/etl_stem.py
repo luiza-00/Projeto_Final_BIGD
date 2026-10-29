@@ -1,15 +1,4 @@
-"""
-ETL - Observatório STEM
-
-Extrai do BigQuery (Base dos Dados) os cursos de graduação das áreas STEM do
-Censo da Educação Superior (INEP), trata e modela os dados em esquema estrela
-e carrega no PostgreSQL hospedado no Aiven.
-
-Fluxo:  BigQuery (origem)  ->  Pandas (tratamento/modelagem)  ->  PostgreSQL (destino)
-
-Nenhuma credencial fica no código. Tudo é lido de variáveis de ambiente
-(arquivo .env local) ou dos Secrets do Google Colab. Ver .env.example.
-"""
+"""ETL Observatório STEM: BigQuery (Base dos Dados) -> Pandas -> PostgreSQL (Aiven)."""
 
 import os
 from pathlib import Path
@@ -22,11 +11,7 @@ from sqlalchemy.engine import URL
 RAIZ = Path(__file__).resolve().parent.parent
 DDL_PATH = RAIZ / "sql" / "01_ddl.sql"
 
-# Áreas gerais da CINE Brasil consideradas STEM
-#   05 - Ciências naturais, matemática e estatística
-#   06 - Computação e Tecnologias da Informação e Comunicação (TIC)
-#   07 - Engenharia, produção e construção
-AREAS_STEM = ("05", "06", "07")
+AREAS_STEM = ("05", "06", "07")  # CINE Brasil: ciências/matemática, computação/TIC, engenharias
 
 COLUNAS_QTD = {
     "quantidade_ingressantes_feminino": "qtd_ingressantes_feminino",
@@ -41,9 +26,6 @@ COLUNAS_QTD = {
 }
 
 
-# ---------------------------------------------------------------------------
-# Configuração / segredos
-# ---------------------------------------------------------------------------
 def em_colab() -> bool:
     try:
         import google.colab  # noqa: F401
@@ -53,7 +35,7 @@ def em_colab() -> bool:
 
 
 def segredo(nome: str, padrao: str | None = None) -> str:
-    """Lê um segredo do ambiente (.env) ou, no Colab, do painel Secrets (ícone de chave)."""
+    """Lê do .env ou dos Secrets do Colab."""
     valor = os.getenv(nome)
     if valor is None and em_colab():
         from google.colab import userdata
@@ -76,17 +58,11 @@ def carregar_env() -> None:
         pass
 
 
-# ---------------------------------------------------------------------------
-# Conexões
-# ---------------------------------------------------------------------------
 def cliente_bigquery() -> bigquery.Client:
     projeto = segredo("GCP_PROJECT_ID")
     if em_colab():
-        # Login com a conta Google do usuário: dispensa arquivo de chave JSON
         from google.colab import auth
         auth.authenticate_user()
-    # Fora do Colab usa Application Default Credentials
-    # (gcloud auth application-default login ou GOOGLE_APPLICATION_CREDENTIALS)
     return bigquery.Client(project=projeto)
 
 
@@ -98,14 +74,11 @@ def engine_postgres():
         host=segredo("PG_HOST"),
         port=int(segredo("PG_PORT")),
         database=segredo("PG_DATABASE", "defaultdb"),
-        query={"sslmode": "require"},  # Aiven exige conexão criptografada
+        query={"sslmode": "require"},
     )
     return create_engine(url)
 
 
-# ---------------------------------------------------------------------------
-# Extração
-# ---------------------------------------------------------------------------
 def extrair(client: bigquery.Client, ano_inicio: int) -> pd.DataFrame:
     colunas = ",\n        ".join(f"c.{c}" for c in COLUNAS_QTD)
     query = f"""
@@ -143,27 +116,21 @@ def extrair(client: bigquery.Client, ano_inicio: int) -> pd.DataFrame:
     return df
 
 
-# ---------------------------------------------------------------------------
-# Tratamento
-# ---------------------------------------------------------------------------
 def tratar(df: pd.DataFrame) -> pd.DataFrame:
     df = df.copy()
 
-    # Tipos e padronização de texto
     df["ano"] = df["ano"].astype("int16")
     for col in ["id_curso", "id_ies", "id_municipio", "nome_curso", "nome_municipio",
                 "sigla_uf", "nome_area_geral", "tipo_organizacao_academica"]:
         df[col] = df[col].astype("string").str.strip()
-    df["id_area_geral"] = df["id_area_geral"].astype("string").str.zfill(2)  # '5' -> '05'
+    df["id_area_geral"] = df["id_area_geral"].astype("string").str.zfill(2)
     df["sigla_uf"] = df["sigla_uf"].str.upper()
     df["nome_curso"] = df["nome_curso"].str.upper()
 
-    # Quantidades: inteiro "nullable" (nulo = não informado no censo, diferente de zero)
     df = df.rename(columns=COLUNAS_QTD)
     for col in COLUNAS_QTD.values():
         df[col] = pd.to_numeric(df[col], errors="coerce").astype("Int64")
 
-    # Remove registros sem identificação de curso
     antes = len(df)
     df = df.dropna(subset=["id_curso"])
     print(f"[tratamento] {antes - len(df)} linhas sem id_curso removidas")
@@ -171,7 +138,6 @@ def tratar(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def modelar(df: pd.DataFrame) -> dict[str, pd.DataFrame]:
-    # Mantém a versão mais recente dos atributos descritivos (nomes mudam ao longo dos anos)
     recente = df.sort_values("ano", ascending=False)
 
     dim_municipio = (
@@ -188,7 +154,6 @@ def modelar(df: pd.DataFrame) -> dict[str, pd.DataFrame]:
         .reset_index(drop=True)
     )
 
-    # Grão: curso x ano. Se houver duplicidade, soma as quantidades.
     chaves = ["ano", "id_curso"]
     qtds = list(COLUNAS_QTD.values())
     fato = (
@@ -203,14 +168,11 @@ def modelar(df: pd.DataFrame) -> dict[str, pd.DataFrame]:
     return {"dim_municipio": dim_municipio, "dim_curso": dim_curso, "fato_stem": fato}
 
 
-# ---------------------------------------------------------------------------
-# Carga
-# ---------------------------------------------------------------------------
 def carregar(tabelas: dict[str, pd.DataFrame], engine) -> None:
     ddl = DDL_PATH.read_text(encoding="utf-8")
-    with engine.begin() as conn:  # transação única: ou carrega tudo, ou nada
+    with engine.begin() as conn:  # transação única
         conn.exec_driver_sql(ddl)
-        for nome in ["dim_municipio", "dim_curso", "fato_stem"]:  # dimensões antes da fato (FK)
+        for nome in ["dim_municipio", "dim_curso", "fato_stem"]:
             tabelas[nome].to_sql(nome, conn, if_exists="append", index=False,
                                  method="multi", chunksize=2000)
             print(f"[carga] {nome}: {len(tabelas[nome]):,} linhas")
@@ -227,7 +189,6 @@ def validar(engine) -> None:
         print(f"[validação] tamanho do banco: {tamanho}")
 
 
-# ---------------------------------------------------------------------------
 def main() -> None:
     carregar_env()
     ano_inicio = int(segredo("ANO_INICIO", "2015"))
@@ -236,7 +197,6 @@ def main() -> None:
     df = tratar(df)
     tabelas = modelar(df)
 
-    # Base tratada também salva em arquivo (entregável "base de dados tratada")
     saida = RAIZ / "data" / "processed"
     saida.mkdir(parents=True, exist_ok=True)
     for nome, tabela in tabelas.items():
