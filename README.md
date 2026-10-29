@@ -40,24 +40,19 @@ Base dos Dados (BigQuery)  →  ETL em Python/Pandas  →  PostgreSQL (Aiven)
 
 ## 1. Dados utilizados
 
-| Item | Descrição |
-|---|---|
-| **Fonte** | [Base dos Dados](https://basedosdados.org), acessada pelo Google BigQuery |
-| **Base principal** | `basedosdados.br_inep_censo_educacao_superior.curso` — Censo da Educação Superior (INEP), um registro por curso, município de oferta e ano |
-| **Bases de apoio** | `br_bd_diretorios_brasil.municipio` (nome e UF dos municípios) e `br_inep_censo_educacao_superior.dicionario` (tradução de códigos) |
-| **Recorte temático** | Cursos das áreas gerais CINE Brasil **05** (Ciências naturais, matemática e estatística), **06** (Computação e TIC) e **07** (Engenharia, produção e construção) |
-| **Recorte temporal** | **2015 a 2024** (configurável pela variável `ANO_INICIO`) |
-| **Indicadores** | Ingressantes, matrículas e concluintes por sexo; ingressantes com financiamento estudantil; matrículas e concluintes por reserva de vaga de renda familiar |
+- **Fonte:** [Base dos Dados](https://basedosdados.org), via Google BigQuery
+- **Base:** Censo da Educação Superior (INEP), tabela `br_inep_censo_educacao_superior.curso`
+- **Apoio:** diretório de municípios (nome e UF) e dicionário de códigos
+- **Recorte:** áreas STEM da CINE Brasil: 05 (ciências naturais e matemática), 06 (computação) e 07 (engenharias)
+- **Período:** 2015 a 2024
+- **Indicadores:** ingressantes, matrículas e concluintes por sexo, financiamento estudantil e reserva de vagas por renda
 
-**Características relevantes da base**
+**Características da base**
 
-- Os microdados originais do INEP são arquivos grandes, divulgados ano a ano. A Base dos Dados disponibiliza a série já padronizada no BigQuery, o que permite filtrar na origem e trazer só o necessário.
-- Os códigos de área podem aparecer com ou sem zero à esquerda (`5` e `05`).
-- Campos categóricos vêm codificados e precisam do dicionário para serem traduzidos.
-- Nomes de cursos e municípios variam ao longo dos anos (grafia, caixa, espaços).
-- Há quantidades nulas, que significam "não informado" e não "zero".
-- Cursos a distância (EAD) aparecem em várias linhas no mesmo ano, uma por município de polo. Exemplo: um curso de 2022 com 441 linhas, cada uma com parte dos alunos. Na extração a partir de 2015 foram 660.043 linhas para cerca de 99 mil combinações de curso e ano.
-- Algumas linhas trazem município inválido (código `0`) ou sem correspondência no diretório: 11.214 linhas na extração.
+- **Cursos EAD aparecem uma vez por polo.** Um curso de 2022 tinha 441 linhas, uma por município. Por isso a extração trouxe 660.043 linhas para cerca de 99 mil cursos/ano.
+- **Municípios inválidos:** 11.214 linhas com código `0` ou sem correspondência no diretório.
+- **Formatos inconsistentes:** área como `5` ou `05`, nomes com espaços e maiúsculas variados.
+- **Nulos significam "não informado",** não zero.
 
 ## 2. Tratamento realizado
 
