@@ -2,9 +2,9 @@ SELECT 'dim_municipio' AS tabela, COUNT(*) AS linhas FROM dim_municipio
 UNION ALL SELECT 'dim_curso', COUNT(*) FROM dim_curso
 UNION ALL SELECT 'fato_stem', COUNT(*) FROM fato_stem;
 
-SELECT ano, COUNT(*) AS cursos FROM fato_stem GROUP BY ano ORDER BY ano;
+SELECT ano, COUNT(DISTINCT id_curso) AS cursos, COUNT(*) AS linhas FROM fato_stem GROUP BY ano ORDER BY ano;
 
-SELECT COUNT(*) AS fato_sem_municipio FROM fato_stem WHERE id_municipio IS NULL;
+SELECT COUNT(*) AS fato_municipio_nao_informado FROM fato_stem WHERE id_municipio = '0000000';
 
 SELECT c.nome_area_geral, COUNT(DISTINCT c.id_curso) AS cursos
 FROM dim_curso c

@@ -21,7 +21,7 @@ CREATE TABLE dim_curso (
 CREATE TABLE fato_stem (
     ano                                    SMALLINT    NOT NULL,
     id_curso                               VARCHAR(20) NOT NULL REFERENCES dim_curso (id_curso),
-    id_municipio                           CHAR(7)              REFERENCES dim_municipio (id_municipio),
+    id_municipio                           CHAR(7)     NOT NULL REFERENCES dim_municipio (id_municipio),
     qtd_ingressantes_feminino              INTEGER,
     qtd_ingressantes_masculino             INTEGER,
     qtd_matriculas_feminino                INTEGER,
@@ -31,10 +31,11 @@ CREATE TABLE fato_stem (
     qtd_ingressantes_financiamento         INTEGER,
     qtd_matriculas_reserva_renda_familiar  INTEGER,
     qtd_concluintes_reserva_renda_familiar INTEGER,
-    PRIMARY KEY (ano, id_curso)
+    PRIMARY KEY (ano, id_curso, id_municipio)
 );
 
 CREATE INDEX idx_fato_municipio ON fato_stem (id_municipio);
+CREATE INDEX idx_fato_curso     ON fato_stem (id_curso);
 CREATE INDEX idx_fato_ano       ON fato_stem (ano);
 CREATE INDEX idx_curso_area     ON dim_curso (id_area_geral);
 CREATE INDEX idx_municipio_uf   ON dim_municipio (sigla_uf);

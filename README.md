@@ -43,7 +43,7 @@ Base dos Dados (BigQuery)  →  ETL em Python/Pandas  →  PostgreSQL (Aiven)
 | Item | Descrição |
 |---|---|
 | **Fonte** | [Base dos Dados](https://basedosdados.org), acessada pelo Google BigQuery |
-| **Base principal** | `basedosdados.br_inep_censo_educacao_superior.curso` — Censo da Educação Superior (INEP), um registro por curso de graduação por ano |
+| **Base principal** | `basedosdados.br_inep_censo_educacao_superior.curso` — Censo da Educação Superior (INEP), um registro por curso, município de oferta e ano |
 | **Bases de apoio** | `br_bd_diretorios_brasil.municipio` (nome e UF dos municípios) e `br_inep_censo_educacao_superior.dicionario` (tradução de códigos) |
 | **Recorte temático** | Cursos das áreas gerais CINE Brasil **05** (Ciências naturais, matemática e estatística), **06** (Computação e TIC) e **07** (Engenharia, produção e construção) |
 | **Recorte temporal** | De `ANO_INICIO` (padrão **2015**) até o ano mais recente disponível |
@@ -56,21 +56,24 @@ Base dos Dados (BigQuery)  →  ETL em Python/Pandas  →  PostgreSQL (Aiven)
 - Campos categóricos vêm codificados e precisam do dicionário para serem traduzidos.
 - Nomes de cursos e municípios variam ao longo dos anos (grafia, caixa, espaços).
 - Há quantidades nulas, que significam "não informado" e não "zero".
+- Cursos a distância (EAD) aparecem em várias linhas no mesmo ano, uma por município de polo. Exemplo: um curso de 2022 com 441 linhas, cada uma com parte dos alunos. Na extração a partir de 2015 foram 660.043 linhas para cerca de 99 mil combinações de curso e ano.
+- Algumas linhas trazem município inválido (código `0`) ou sem correspondência no diretório: 11.214 linhas na extração.
 
 ## 2. Tratamento realizado
 
 | Problema / característica | Decisão | Justificativa |
 |---|---|---|
 | Volume grande da base completa | Filtrar áreas STEM e anos na própria consulta ao BigQuery | Reduz o tráfego e cabe no limite do plano gratuito do Aiven |
-| Série histórica com vários anos | Incluir a coluna `ano` e definir o grão da fato como **curso × ano** | Sem o ano, os indicadores de anos diferentes se misturam |
+| Série histórica com vários anos | Incluir a coluna `ano` na fato | Sem o ano, os indicadores de anos diferentes se misturam |
+| Cursos EAD com uma linha por município de polo | Grão da fato definido como **curso × município × ano** | Cada linha é uma parte dos alunos do curso; manter todas preserva o total e a distribuição geográfica |
 | Códigos de área inconsistentes | Padronizar com 2 dígitos (`zfill`) | Garante filtro e agrupamento corretos |
 | Códigos sem descrição | Join com o dicionário (`tipo_organizacao_academica`) | Torna o dado legível para análise |
 | Nomes com variação de grafia | `strip` + maiúsculas; na dimensão fica a versão **mais recente** | Evita duplicar o mesmo curso ou município na dimensão |
 | Quantidades nulas | Mantidas como `NULL` (inteiro anulável) | Diferencia "não informado" de "zero" |
 | Dicionário com mais de uma linha por código (uma por período) multiplicava os cursos na junção | Dicionário agrupado por código antes da junção (`GROUP BY chave`) | Evita duplicar cursos e inflar as quantidades |
-| Possível duplicidade curso × ano restante | Mantido um registro por curso × ano | Garante a chave primária sem somar valores repetidos |
+| Mais de uma linha com o mesmo curso, município e ano | Quantidades somadas | Garante a chave primária sem perder alunos |
 | Curso sem `id_curso` | Registro removido | Não pode ser relacionado à dimensão |
-| Município inválido (ex.: código `0`) ou sem correspondência no diretório | `id_municipio` fica nulo na fato e não entra na dimensão | O curso continua contabilizado, sem criar um município inexistente |
+| Município inválido (ex.: código `0`) ou sem correspondência no diretório | Atribuído ao registro `0000000` "NAO INFORMADO" (UF `NI`) da dimensão | O curso continua contabilizado e a chave estrangeira é respeitada |
 | Tabela intermediária `raw_censo_stem` | Removida | Duplicava os dados e ocupava espaço do plano gratuito |
 
 As transformações estão em `etl/etl_stem.py` (funções `tratar` e `modelar`).
@@ -101,7 +104,7 @@ erDiagram
     fato_stem {
         smallint ano PK
         varchar  id_curso PK,FK
-        char7    id_municipio FK
+        char7    id_municipio PK,FK
         int      qtd_ingressantes_feminino
         int      qtd_ingressantes_masculino
         int      qtd_matriculas_feminino
@@ -116,7 +119,7 @@ erDiagram
 
 - **dim_municipio**: dados geográficos dos municípios onde os cursos são ofertados.
 - **dim_curso**: identificação e classificação dos cursos STEM.
-- **fato_stem**: indicadores quantitativos, um registro por curso por ano.
+- **fato_stem**: indicadores quantitativos, um registro por curso, município e ano. Somando os municípios, obtém-se o total do curso no ano.
 - O DDL (`sql/01_ddl.sql`) define tipos, chaves primárias, chaves estrangeiras e índices,
   em vez de deixar o Pandas criar as tabelas automaticamente.
 

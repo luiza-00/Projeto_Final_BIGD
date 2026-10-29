@@ -1,4 +1,5 @@
 import importlib.util
+import io
 import os
 from pathlib import Path
 
@@ -9,6 +10,7 @@ from sqlalchemy.engine import URL
 
 RAIZ = Path(__file__).resolve().parent.parent
 DDL_PATH = RAIZ / "sql" / "01_ddl.sql"
+MUNICIPIO_NI = ("0000000", "NAO INFORMADO", "NI")
 
 AREAS_STEM = ("05", "06", "07")
 
@@ -121,7 +123,9 @@ def tratar(df: pd.DataFrame) -> pd.DataFrame:
     df["id_area_geral"] = df["id_area_geral"].astype("string").str.zfill(2)
     df["sigla_uf"] = df["sigla_uf"].str.upper()
     invalido = ~df["id_municipio"].str.fullmatch(r"\d{7}", na=False) | df["nome_municipio"].isna()
-    df.loc[invalido, ["id_municipio", "nome_municipio", "sigla_uf"]] = pd.NA
+    df.loc[invalido, "id_municipio"] = MUNICIPIO_NI[0]
+    df.loc[invalido, "nome_municipio"] = MUNICIPIO_NI[1]
+    df.loc[invalido, "sigla_uf"] = MUNICIPIO_NI[2]
     print(f"[tratamento] {int(invalido.sum())} linhas com município inválido ou ausente")
     df["nome_curso"] = df["nome_curso"].str.upper()
 
@@ -139,8 +143,7 @@ def modelar(df: pd.DataFrame) -> dict[str, pd.DataFrame]:
     recente = df.sort_values("ano", ascending=False)
 
     dim_municipio = (
-        recente.dropna(subset=["id_municipio"])
-        [["id_municipio", "nome_municipio", "sigla_uf"]]
+        recente[["id_municipio", "nome_municipio", "sigla_uf"]]
         .drop_duplicates("id_municipio")
         .reset_index(drop=True)
     )
@@ -153,11 +156,13 @@ def modelar(df: pd.DataFrame) -> dict[str, pd.DataFrame]:
     )
     dim_curso["nome_curso"] = dim_curso["nome_curso"].fillna("NAO INFORMADO")
 
-    chaves = ["ano", "id_curso"]
+    chaves = ["ano", "id_curso", "id_municipio"]
     qtds = list(COLUNAS_QTD.values())
-    duplicadas = df.duplicated(chaves).sum()
-    print(f"[modelagem] {duplicadas} linhas repetidas de curso x ano descartadas")
-    fato = df.drop_duplicates(chaves)[chaves + ["id_municipio"] + qtds].reset_index(drop=True)
+    fato = (
+        df.groupby(chaves, as_index=False, sort=False)[qtds]
+        .sum(min_count=1)
+    )
+    print(f"[modelagem] {len(df) - len(fato):,} linhas agregadas na mesma chave curso x município x ano")
     for c in qtds:
         fato[c] = fato[c].astype("Int64")
 
@@ -166,13 +171,21 @@ def modelar(df: pd.DataFrame) -> dict[str, pd.DataFrame]:
     return {"dim_municipio": dim_municipio, "dim_curso": dim_curso, "fato_stem": fato}
 
 
+def copiar(cursor, tabela: str, df: pd.DataFrame) -> None:
+    buffer = io.StringIO()
+    df.to_csv(buffer, index=False, header=False, na_rep="")
+    buffer.seek(0)
+    colunas = ", ".join(df.columns)
+    cursor.copy_expert(f"COPY {tabela} ({colunas}) FROM STDIN WITH (FORMAT csv)", buffer)
+
+
 def carregar(tabelas: dict[str, pd.DataFrame], engine) -> None:
     ddl = DDL_PATH.read_text(encoding="utf-8")
     with engine.begin() as conn:
         conn.exec_driver_sql(ddl)
+        cursor = conn.connection.cursor()
         for nome in ["dim_municipio", "dim_curso", "fato_stem"]:
-            tabelas[nome].to_sql(nome, conn, if_exists="append", index=False,
-                                 method="multi", chunksize=2000)
+            copiar(cursor, nome, tabelas[nome])
             print(f"[carga] {nome}: {len(tabelas[nome]):,} linhas")
 
 
