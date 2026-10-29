@@ -182,12 +182,12 @@ Nenhuma credencial é versionada. A estratégia adotada foi:
 
 ```bash
 cd infra/terraform
-cp terraform.tfvars.example terraform.tfvars   # preencher
-export AIVEN_TOKEN="..."                         # token do Aiven
+cp terraform.tfvars.example terraform.tfvars   
+export AIVEN_TOKEN="..."                         
 gcloud auth application-default login
 
 terraform init
-# Se o banco já existe (criado antes pelo console), importá-lo em vez de recriar:
+
 terraform import aiven_pg.obs_stem obssteam/obsstem
 terraform plan
 terraform apply
