@@ -127,15 +127,32 @@ erDiagram
 
 ## 4. Infraestrutura
 
-| Serviço | Uso | Recurso no Terraform |
-|---|---|---|
-| **Aiven for PostgreSQL** (free tier) | Banco de dados de destino | `aiven_pg.obs_stem` |
-| **Google Cloud / BigQuery** | Execução das consultas na Base dos Dados | `google_project_service.bigquery` |
-| **Service Account GCP** | Identidade do ETL com permissão mínima (`roles/bigquery.jobUser`) | `google_service_account.etl` e `google_project_iam_member.etl_job_user` |
-| **Google Colab / Python 3** | Execução do ETL | — |
+O projeto usa três serviços em nuvem, cada um com um papel:
 
-Tecnologias: Terraform ≥ 1.5, providers `aiven/aiven` 4.x e `hashicorp/google` 5.x,
-Python 3.10+, Pandas, SQLAlchemy, psycopg2 e google-cloud-bigquery.
+** Google BigQuery: de onde vêm os dados**
+É onde a Base dos Dados publica o Censo. O ETL só faz consultas, nada é gravado lá.
+
+**Google Colab: onde o código roda**
+O ETL em Python é executado no Colab, que já tem o ambiente pronto e se conecta ao BigQuery com a conta Google de quem executa.
+
+**Aiven PostgreSQL: onde os dados ficam**
+O banco de destino, no plano gratuito do Aiven. É aqui que ficam as tabelas tratadas.
+
+### Terraform
+
+A pasta `infra/terraform/` descreve essa infraestrutura como código:
+
+- **`aiven_pg.obs_stem`**: o banco PostgreSQL no Aiven (projeto `obssteam`, serviço `obsstem`), com proteção contra exclusão acidental
+- **`google_project_service.bigquery`**: ativa a API do BigQuery no projeto Google
+- **`google_service_account.etl`**: uma conta de serviço só com permissão de consulta, preparada para execuções automáticas no futuro
+
+O banco foi criado primeiro pelo painel do Aiven. Os arquivos foram escritos para representar esse mesmo banco e passaram no `terraform validate`. Falta apenas importar o banco existente para o Terraform (`terraform import`), o que depende do token da conta Aiven.
+
+### Tecnologias
+
+- **Infraestrutura:** Terraform 1.5+, com os providers do Aiven e do Google
+- **Código:** Python 3.10+, com Pandas para o tratamento e SQLAlchemy/psycopg2 para o banco
+- **Dados:** biblioteca `google-cloud-bigquery` para as consultas
 
 ## 5. Segurança das informações
 
