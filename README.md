@@ -46,7 +46,7 @@ Base dos Dados (BigQuery)  →  ETL em Python/Pandas  →  PostgreSQL (Aiven)
 | **Base principal** | `basedosdados.br_inep_censo_educacao_superior.curso` — Censo da Educação Superior (INEP), um registro por curso, município de oferta e ano |
 | **Bases de apoio** | `br_bd_diretorios_brasil.municipio` (nome e UF dos municípios) e `br_inep_censo_educacao_superior.dicionario` (tradução de códigos) |
 | **Recorte temático** | Cursos das áreas gerais CINE Brasil **05** (Ciências naturais, matemática e estatística), **06** (Computação e TIC) e **07** (Engenharia, produção e construção) |
-| **Recorte temporal** | De `ANO_INICIO` (padrão **2015**) até o ano mais recente disponível |
+| **Recorte temporal** | **2015 a 2024** (configurável pela variável `ANO_INICIO`) |
 | **Indicadores** | Ingressantes, matrículas e concluintes por sexo; ingressantes com financiamento estudantil; matrículas e concluintes por reserva de vaga de renda familiar |
 
 **Características relevantes da base**
@@ -159,7 +159,7 @@ Nenhuma credencial é versionada. A estratégia adotada:
 
 ### Pré-requisitos
 
-- Conta no Aiven (com token de API) e projeto no Google Cloud com faturamento habilitado para o BigQuery
+- Conta no Aiven (com token de API) e projeto no Google Cloud com a API do BigQuery ativada (o modo gratuito Sandbox é suficiente)
 - Terraform ≥ 1.5, Python ≥ 3.10 e Google Cloud CLI (para execução local)
 
 ### Passo 1 — Infraestrutura
@@ -215,11 +215,3 @@ Sequência executada pelo script:
 ### Passo 4 — Validação
 
 Execute as consultas de `sql/02_validacoes.sql` em qualquer cliente PostgreSQL (DBeaver, psql etc.).
-
----
-
-## Uso de ferramentas de IA
-
-A versão inicial desta etapa (reestruturação do código, Terraform e documentação) foi elaborada
-com apoio de IA generativa, com autorização da docente. A equipe revisou e complementou o material;
-as conclusões e análises são de autoria da equipe.
