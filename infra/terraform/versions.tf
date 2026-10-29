@@ -12,8 +12,6 @@ terraform {
     }
   }
 }
-
-# Token lido da variável de ambiente AIVEN_TOKEN
 provider "aiven" {}
 
 provider "google" {

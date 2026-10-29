@@ -1,4 +1,3 @@
-# Copie para terraform.tfvars. O token do Aiven vai na variável de ambiente AIVEN_TOKEN.
 aiven_project   = "obssteam"
 pg_service_name = "obsstem"
 pg_plan         = "free-1-1gb"
