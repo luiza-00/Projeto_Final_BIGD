@@ -83,7 +83,7 @@ Se der erro no meio, nada é gravado e o banco continua como estava.
 ## 3. Modelagem
 
 Foi adotado um **esquema estrela** (modelo dimensional), adequado para consultas analíticas
-de agregação por tempo, local e área, que é o uso previsto nas próximas fases.
+de agregação por tempo, local e área, que é o uso previsto nas próximas fases. (feito com mermaid)
 
 ```mermaid
 erDiagram
