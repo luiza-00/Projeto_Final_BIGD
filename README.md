@@ -20,19 +20,19 @@ Base dos Dados (BigQuery)  →  ETL em Python/Pandas  →  PostgreSQL (Aiven)
 .
 ├── etl/
 │   ├── etl_stem.py          # extração, tratamento, modelagem e carga
-│   └── requirements.txt     # dependências Python
+│   └── requirements.txt     # dependencias Python
 ├── sql/
-│   ├── 01_ddl.sql           # criação das tabelas (PK, FK, índices)
-│   └── 02_validacoes.sql    # consultas de conferência pós-carga
+│   ├── 01_ddl.sql           # tabelas (PK, FK, idndices)
+│   └── 02_validacoes.sql   
 ├── infra/terraform/         # infraestrutura como código
 │   ├── versions.tf          # providers (Aiven e Google)
 │   ├── variables.tf
-│   ├── main.tf              # PostgreSQL no Aiven + acesso ao BigQuery
+│   ├── main.tf              # PostgreSQL no Aiven + BigQuery
 │   ├── outputs.tf
 │   └── terraform.tfvars.example
 ├── docs/
 │   └── decisoes_tecnicas.md
-├── .env.example             # modelo das variáveis de ambiente (sem valores reais)
+├── .env.example             # variáveis de ambiente
 └── .gitignore
 ```
 
