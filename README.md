@@ -56,17 +56,30 @@ Base dos Dados (BigQuery)  →  ETL em Python/Pandas  →  PostgreSQL (Aiven)
 
 ## 2. Tratamento realizado
 
-| Problema | O que fizemos | Por quê |
-|---|---|---|
-| Base muito grande | Filtramos as áreas STEM e os anos já na consulta ao BigQuery | Trazer só o necessário e caber no plano gratuito do banco |
-| Cursos EAD com uma linha por polo | Mantivemos todas as linhas: cada registro é **curso × município × ano** | Cada linha tem parte dos alunos; descartar perderia dados |
-| Dicionário repetido duplicava cursos | Agrupamos o dicionário antes de juntar com os cursos | Evitar contar o mesmo curso mais de uma vez |
-| Município inválido (11.214 linhas) | Registro "NAO INFORMADO" (`0000000`) | O curso continua nos totais, mesmo sem local |
-| Linhas repetidas de curso, município e ano (392) | Somamos as quantidades | Garantir uma linha por chave sem perder alunos |
-| Formatos inconsistentes | Área com 2 dígitos, nomes sem espaços extras e em maiúsculas | Agrupar e filtrar corretamente |
-| Quantidades vazias | Mantidas como nulas | "Não informado" é diferente de zero |
+O tratamento segue quatro etapas, todas em `etl/etl_stem.py`.
 
-O código está em `etl/etl_stem.py`, nas funções `tratar` e `modelar`.
+### 1️ -Filtrar na origem
+Em vez de baixar a base inteira, a consulta ao BigQuery já traz **só os cursos STEM de 2015 a 2024**.
+Assim o volume cabe no plano gratuito do banco.
+
+### 2️ - Limpar e padronizar
+- Área sempre com 2 dígitos (`5` → `05`)
+- Nomes sem espaços extras e em maiúsculas
+- Quantidades vazias mantidas como nulas, porque "não informado" não é zero
+- Municípios inválidos (**11.214 linhas**, código `0`) vão para um registro **"NAO INFORMADO"**, para o curso continuar contando nos totais
+
+### 3️ - Resolver as repetições
+Ao conferir a primeira carga, vimos **660 mil linhas extraídas para só 99 mil cursos/ano**. Investigamos e encontramos duas causas:
+
+- **O dicionário de códigos tinha linhas repetidas**, e isso duplicava cursos na junção. Corrigimos agrupando o dicionário antes.
+- **Cursos EAD aparecem uma vez por polo.** Um curso de 2022 tinha 441 linhas, uma por município, cada uma com parte dos alunos.
+
+Por isso **mantivemos todas as linhas**: cada registro passou a ser **curso × município × ano**.
+As 392 linhas que ainda repetiam a mesma combinação tiveram as quantidades somadas.
+
+### 4️ - Organizar e carregar
+Os dados são separados em municípios, cursos e indicadores (ver [Modelagem](#3-modelagem)) e carregados no PostgreSQL de uma vez só.
+Se der erro no meio, nada é gravado e o banco continua como estava.
 ## 3. Modelagem
 
 Foi adotado um **esquema estrela** (modelo dimensional), adequado para consultas analíticas
