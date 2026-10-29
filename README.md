@@ -156,7 +156,7 @@ O banco foi criado primeiro pelo painel do Aiven. Os arquivos foram escritos par
 
 ## 5. Segurança das informações
 
-Nenhuma credencial é versionada. A estratégia adotada:
+Nenhuma credencial é versionada. A estratégia adotada foi:
 
 1. **Variáveis de ambiente**: o ETL lê host, porta, usuário e senha do banco de um arquivo `.env`
    local (ignorado pelo Git) ou, no Colab, do painel **Secrets**. O repositório contém apenas o
@@ -170,9 +170,6 @@ Nenhuma credencial é versionada. A estratégia adotada:
 4. **Conexão criptografada**: o ETL conecta ao PostgreSQL com `sslmode=require`.
 5. **Privilégio mínimo**: a service account do ETL só pode executar consultas.
 6. **`termination_protection`** ativo no banco, contra exclusão acidental.
-
-> **Incidente corrigido:** uma versão anterior do script continha a senha do banco em texto puro.
-> A senha foi trocada no Aiven, o arquivo foi removido e o histórico do repositório foi reescrito.
 
 ## 6. Execução
 
@@ -196,13 +193,13 @@ terraform plan
 terraform apply
 
 terraform output                       # host, porta e usuário
-terraform output -raw pg_password      # senha (não compartilhar)
+terraform output -raw pg_password      # senha (secrets)
 ```
 
 ### Passo 2 — Configuração
 
 ```bash
-cp .env.example .env    # preencher com os outputs do Terraform
+cp .env.example .env    
 pip install -r etl/requirements.txt
 ```
 
