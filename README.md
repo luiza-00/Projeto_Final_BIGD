@@ -56,23 +56,17 @@ Base dos Dados (BigQuery)  →  ETL em Python/Pandas  →  PostgreSQL (Aiven)
 
 ## 2. Tratamento realizado
 
-| Problema / característica | Decisão | Justificativa |
+| Problema | O que fizemos | Por quê |
 |---|---|---|
-| Volume grande da base completa | Filtrar áreas STEM e anos na própria consulta ao BigQuery | Reduz o tráfego e cabe no limite do plano gratuito do Aiven |
-| Série histórica com vários anos | Incluir a coluna `ano` na fato | Sem o ano, os indicadores de anos diferentes se misturam |
-| Cursos EAD com uma linha por município de polo | Grão da fato definido como **curso × município × ano** | Cada linha é uma parte dos alunos do curso; manter todas preserva o total e a distribuição geográfica |
-| Códigos de área inconsistentes | Padronizar com 2 dígitos (`zfill`) | Garante filtro e agrupamento corretos |
-| Códigos sem descrição | Join com o dicionário (`tipo_organizacao_academica`) | Torna o dado legível para análise |
-| Nomes com variação de grafia | `strip` + maiúsculas; na dimensão fica a versão **mais recente** | Evita duplicar o mesmo curso ou município na dimensão |
-| Quantidades nulas | Mantidas como `NULL` (inteiro anulável) | Diferencia "não informado" de "zero" |
-| Dicionário com mais de uma linha por código (uma por período) multiplicava os cursos na junção | Dicionário agrupado por código antes da junção (`GROUP BY chave`) | Evita duplicar cursos e inflar as quantidades |
-| Mais de uma linha com o mesmo curso, município e ano | Quantidades somadas | Garante a chave primária sem perder alunos |
-| Curso sem `id_curso` | Registro removido | Não pode ser relacionado à dimensão |
-| Município inválido (ex.: código `0`) ou sem correspondência no diretório | Atribuído ao registro `0000000` "NAO INFORMADO" (UF `NI`) da dimensão | O curso continua contabilizado e a chave estrangeira é respeitada |
-| Tabela intermediária `raw_censo_stem` | Removida | Duplicava os dados e ocupava espaço do plano gratuito |
+| Base muito grande | Filtramos as áreas STEM e os anos já na consulta ao BigQuery | Trazer só o necessário e caber no plano gratuito do banco |
+| Cursos EAD com uma linha por polo | Mantivemos todas as linhas: cada registro é **curso × município × ano** | Cada linha tem parte dos alunos; descartar perderia dados |
+| Dicionário repetido duplicava cursos | Agrupamos o dicionário antes de juntar com os cursos | Evitar contar o mesmo curso mais de uma vez |
+| Município inválido (11.214 linhas) | Registro "NAO INFORMADO" (`0000000`) | O curso continua nos totais, mesmo sem local |
+| Linhas repetidas de curso, município e ano (392) | Somamos as quantidades | Garantir uma linha por chave sem perder alunos |
+| Formatos inconsistentes | Área com 2 dígitos, nomes sem espaços extras e em maiúsculas | Agrupar e filtrar corretamente |
+| Quantidades vazias | Mantidas como nulas | "Não informado" é diferente de zero |
 
-As transformações estão em `etl/etl_stem.py` (funções `tratar` e `modelar`).
-
+O código está em `etl/etl_stem.py`, nas funções `tratar` e `modelar`.
 ## 3. Modelagem
 
 Foi adotado um **esquema estrela** (modelo dimensional), adequado para consultas analíticas
