@@ -1,0 +1,16 @@
+.env
+*.json
+*.pem
+*.key
+
+**/.terraform/*
+*.tfstate
+*.tfstate.*
+*.tfvars
+!*.tfvars.example
+
+data/
+__pycache__/
+*.pyc
+.venv/
+.ipynb_checkpoints/
