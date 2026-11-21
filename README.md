@@ -1,7 +1,6 @@
 # Observatório STEM — Projeto Final de Big Data
 
-Camada de dados do projeto: extração, tratamento, modelagem e armazenamento em nuvem
-de indicadores dos cursos de graduação STEM no Brasil (Marco 2).
+Pipeline completo de dados e camada de Analytics do Observatório de cursos de graduação STEM no Brasil.
 
 **Equipe:** Helena Musse de Souza, Luiza Gabriella dos Santos, Maria Eduarda Candeias Miranda,
 Tharsyla Jones Luz de Andrade.
@@ -10,6 +9,8 @@ Tharsyla Jones Luz de Andrade.
 Base dos Dados (BigQuery)  →  ETL em Python/Pandas  →  PostgreSQL (Aiven)
         origem                  tratamento + modelagem        destino
                          infraestrutura provisionada com Terraform
+                 ├── Streamlit: análise interativa
+                 └── Grafana: observabilidade do banco
 ```
 
 ---
@@ -30,6 +31,13 @@ Base dos Dados (BigQuery)  →  ETL em Python/Pandas  →  PostgreSQL (Aiven)
 │   ├── main.tf              # PostgreSQL no Aiven + BigQuery
 │   ├── outputs.tf
 │   └── terraform.tfvars.example
+├── dashboard/                 # painel analítico Streamlit
+│   ├── app.py
+│   ├── requirements.txt
+│   └── .streamlit/config.toml
+├── grafana/                   # dashboard operacional Grafana
+│   ├── dashboards/observatorio-stem.json
+│   └── README.md
 ├── docs/
 │   └── decisoes_tecnicas.md
 ├── .env.example             # variáveis de ambiente
@@ -231,3 +239,50 @@ Sequência executada pelo script:
 ### Passo 4 — Validação
 
 Execute as consultas de `sql/02_validacoes.sql` em qualquer cliente PostgreSQL (DBeaver, psql etc.).
+
+
+## 7. Dashboard analítico — Streamlit
+
+O Streamlit é a interface principal para exploração dos indicadores. O painel consulta o PostgreSQL da Aiven e oferece filtros por período, UF, área STEM, sexo e métrica. Exibe quatro KPIs, evolução temporal, participação por sexo, distribuição por área e UF, tabela detalhada e exportação CSV.
+
+### Executar localmente
+
+Instale as dependências do dashboard e configure as mesmas variáveis `PG_*` do `.env.example` no arquivo `.env` da raiz do projeto:
+
+```bash
+pip install -r dashboard/requirements.txt
+streamlit run dashboard/app.py
+```
+
+### Publicar no Streamlit Community Cloud
+
+1. Publique o repositório no GitHub sem o arquivo `.env`.
+2. Crie uma aplicação apontando para `dashboard/app.py`.
+3. Configure em **App settings → Secrets** as variáveis `PG_HOST`, `PG_PORT`, `PG_DATABASE`, `PG_USER` e `PG_PASSWORD`.
+4. Use `dashboard/requirements.txt` como arquivo de dependências, se solicitado.
+5. Verifique a conectividade SSL com o Aiven.
+
+## 8. Monitoramento — Grafana
+
+O Grafana é complementar ao Streamlit: acompanha volume de registros, quantidade de cursos, ano mais recente carregado, tamanho do banco, matrículas por sexo/ano e validações de volume. Não replica a análise social do Streamlit.
+
+Para configurar, siga `grafana/README.md` e importe `grafana/dashboards/observatorio-stem.json` em uma instância Grafana Cloud. Cadastre o PostgreSQL Aiven como fonte de dados com SSL obrigatório e associe essa fonte ao dashboard. As credenciais devem ser cadastradas no cofre/configuração do Grafana, nunca no JSON versionado.
+
+## 9. Escopo analítico e limitações dos dados
+
+**Atenção:** a tabela `curso` utilizada neste repositório disponibiliza os indicadores agregados por sexo, curso, município e ano. O esquema atual não contém raça/cor nem identificadores de coorte/estudante. Portanto:
+
+- O painel permite analisar participação e distribuição por sexo, área, UF e período.
+- Não é possível produzir cruzamentos de gênero × raça/cor (ODS 18) com a carga atual. O recorte atual contribui para a discussão de igualdade de gênero (ODS 5).
+- Não é metodologicamente correto chamar a razão entre concluintes e ingressantes no mesmo ano de taxa de evasão: são grupos de pessoas diferentes.
+- Para calcular evasão/retenção de fato, será necessário incorporar dados longitudinais ou coortes que permitam acompanhar ingressantes ao longo dos anos, com metodologia documentada.
+- Os KPIs atuais são descritivos e não devem ser interpretados como evidência causal.
+
+## 10. Checklist para a entrega
+
+- [ ] Provisionar/importar o PostgreSQL Aiven no Terraform e registrar evidência do `terraform plan/apply`.
+- [ ] Executar ETL e validar contagens e integridade referencial.
+- [ ] Publicar o Streamlit e testar filtros, gráficos e exportação.
+- [ ] Importar o dashboard no Grafana Cloud e validar a conexão PostgreSQL.
+- [ ] Configurar todos os segredos nas plataformas de deploy, sem versioná-los.
+- [ ] Incluir no pitch a arquitetura, os 5 V's, decisões de modelagem, regras de negócio e limitações metodológicas.
