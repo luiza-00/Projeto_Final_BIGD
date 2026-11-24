@@ -6,15 +6,7 @@ terraform {
       source  = "aiven/aiven"
       version = "~> 4.0"
     }
-    google = {
-      source  = "hashicorp/google"
-      version = "~> 5.0"
-    }
   }
 }
-provider "aiven" {}
 
-provider "google" {
-  project = var.gcp_project_id
-  region  = var.gcp_region
-}
+provider "aiven" {}

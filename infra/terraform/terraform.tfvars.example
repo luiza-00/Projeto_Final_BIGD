@@ -1,6 +1,4 @@
-aiven_project   = "obssteam"
+aiven_project   = "nome-do-seu-projeto-no-aiven"
 pg_service_name = "obsstem"
 pg_plan         = "free-1-1gb"
 pg_cloud        = "do-nyc"
-
-gcp_project_id = "obs-stem"

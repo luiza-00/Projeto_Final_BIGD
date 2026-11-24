@@ -1,5 +1,7 @@
 .env
 *.json
+!grafana/**/*.json
+!.devcontainer/*.json
 *.pem
 *.key
 

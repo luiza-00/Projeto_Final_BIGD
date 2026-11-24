@@ -21,16 +21,17 @@ Base dos Dados (BigQuery)  →  ETL em Python/Pandas  →  PostgreSQL (Aiven)
 .
 ├── etl/
 │   ├── etl_stem.py          # extração, tratamento, modelagem e carga
-│   └── requirements.txt     # dependencias Python
+│   └── requirements.txt     # dependências Python
 ├── sql/
-│   ├── 01_ddl.sql           # tabelas (PK, FK, idndices)
-│   └── 02_validacoes.sql   
+│   ├── 01_ddl.sql           # tabelas (PK, FK, índices)
+│   └── 02_validacoes.sql    # consultas de conferência
 ├── infra/terraform/         # infraestrutura como código
-│   ├── versions.tf          # providers (Aiven e Google)
+│   ├── versions.tf          # provider do Aiven
 │   ├── variables.tf
-│   ├── main.tf              # PostgreSQL no Aiven + BigQuery
+│   ├── main.tf              # PostgreSQL no Aiven
 │   ├── outputs.tf
-│   └── terraform.tfvars.example
+│   ├── terraform.tfvars.example
+│   └── gcp/                 # opcional: API do BigQuery e conta de serviço
 ├── dashboard/                 # painel analítico Streamlit
 │   ├── app.py
 │   ├── requirements.txt
@@ -148,17 +149,18 @@ O banco de destino, no plano gratuito do Aiven. É aqui que ficam as tabelas tra
 
 ### Terraform
 
-A pasta `infra/terraform/` descreve essa infraestrutura como código:
+O banco PostgreSQL é criado pelo Terraform, a partir da pasta `infra/terraform/`:
 
-- **`aiven_pg.obs_stem`**: o banco PostgreSQL no Aiven (projeto `obssteam`, serviço `obsstem`), com proteção contra exclusão acidental
-- **`google_project_service.bigquery`**: ativa a API do BigQuery no projeto Google
-- **`google_service_account.etl`**: uma conta de serviço só com permissão de consulta, preparada para execuções automáticas no futuro
+- **`aiven_pg.obs_stem`**: o serviço PostgreSQL no Aiven (serviço `obsstem`, plano gratuito), com proteção contra exclusão acidental
+- **Outputs:** host, porta, usuário e senha (marcada como sensível), usados para configurar o ETL e o dashboard
 
-O banco foi criado primeiro pelo painel do Aiven. Os arquivos foram escritos para representar esse mesmo banco e passaram no `terraform validate`. Falta apenas importar o banco existente para o Terraform (`terraform import`), o que depende do token da conta Aiven.
+A pasta `infra/terraform/gcp/` é opcional e separada: ativa a API do BigQuery e cria uma conta de serviço só com permissão de consulta, para execuções automáticas no futuro. Fica separada para que o banco possa ser criado apenas com o token do Aiven.
+
+O primeiro banco do projeto tinha sido criado pelo painel do Aiven em um período de teste, que expirou. O banco atual foi recriado com `terraform apply`, e os dados foram recarregados pelo ETL a partir do BigQuery.
 
 ### Tecnologias
 
-- **Infraestrutura:** Terraform 1.5+, com os providers do Aiven e do Google
+- **Infraestrutura:** Terraform 1.5+, com o provider do Aiven (e o do Google, na pasta opcional `gcp/`)
 - **Código:** Python 3.10+, com Pandas para o tratamento e SQLAlchemy/psycopg2 para o banco
 - **Dados:** biblioteca `google-cloud-bigquery` para as consultas
 
@@ -183,25 +185,23 @@ Nenhuma credencial é versionada. A estratégia adotada foi:
 
 ### Pré-requisitos
 
-- Conta no Aiven (com token de API) e projeto no Google Cloud com a API do BigQuery ativada (o modo gratuito Sandbox é suficiente)
-- Terraform ≥ 1.5, Python ≥ 3.10 e Google Cloud CLI (para execução local)
+- Conta no Aiven (plano gratuito) com token de API
+- Projeto no Google Cloud com a API do BigQuery ativada (o modo gratuito Sandbox é suficiente)
+- Terraform ≥ 1.5 e, para execução local do ETL, Python ≥ 3.10
 
 ### Passo 1 — Infraestrutura
 
 ```bash
 cd infra/terraform
-cp terraform.tfvars.example terraform.tfvars   
-export AIVEN_TOKEN="..."                         
-gcloud auth application-default login
+cp terraform.tfvars.example terraform.tfvars   # nome do projeto no Aiven
+export AIVEN_TOKEN="..."                       # PowerShell: $env:AIVEN_TOKEN="..."
 
 terraform init
-
-terraform import aiven_pg.obs_stem obssteam/obsstem
 terraform plan
 terraform apply
 
 terraform output                       # host, porta e usuário
-terraform output -raw pg_password      # senha (secrets)
+terraform output -raw pg_password      # senha (vai para os Secrets)
 ```
 
 ### Passo 2 — Configuração
@@ -280,7 +280,7 @@ Para configurar, siga `grafana/README.md` e importe `grafana/dashboards/observat
 
 ## 10. Checklist para a entrega
 
-- [ ] Provisionar/importar o PostgreSQL Aiven no Terraform e registrar evidência do `terraform plan/apply`.
+- [ ] Criar o PostgreSQL no Aiven com `terraform apply` e registrar evidência do `plan/apply`.
 - [ ] Executar ETL e validar contagens e integridade referencial.
 - [ ] Publicar o Streamlit e testar filtros, gráficos e exportação.
 - [ ] Importar o dashboard no Grafana Cloud e validar a conexão PostgreSQL.

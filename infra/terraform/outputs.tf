@@ -18,8 +18,3 @@ output "pg_password" {
   value       = aiven_pg.obs_stem.service_password
   sensitive   = true
 }
-
-output "etl_service_account" {
-  description = "E-mail da conta de serviço do ETL"
-  value       = google_service_account.etl.email
-}
