@@ -11,7 +11,8 @@
 *.tfvars
 !*.tfvars.example
 
-data/
+data/*
+!data/base_tratada.zip
 __pycache__/
 *.pyc
 .venv/

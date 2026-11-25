@@ -39,6 +39,8 @@ Base dos Dados (BigQuery)  →  ETL em Python/Pandas  →  PostgreSQL (Aiven)
 ├── grafana/                   # dashboard operacional Grafana
 │   ├── dashboards/observatorio-stem.json
 │   └── README.md
+├── data/
+│   └── base_tratada.zip     # base tratada (3 CSVs)
 ├── docs/
 │   └── decisoes_tecnicas.md
 ├── .env.example             # variáveis de ambiente
@@ -156,7 +158,7 @@ O banco PostgreSQL é criado pelo Terraform, a partir da pasta `infra/terraform/
 
 A pasta `infra/terraform/gcp/` é opcional e separada: ativa a API do BigQuery e cria uma conta de serviço só com permissão de consulta, para execuções automáticas no futuro. Fica separada para que o banco possa ser criado apenas com o token do Aiven.
 
-O primeiro banco do projeto tinha sido criado pelo painel do Aiven em um período de teste, que expirou. O banco atual foi recriado com `terraform apply`, e os dados foram recarregados pelo ETL a partir do BigQuery.
+O primeiro banco do projeto foi criado pelo painel do Aiven em um período de teste, que expirou. O banco atual (`bigdata-hm/pg-3c0071ef`) foi incorporado ao Terraform com `terraform import`, e o `terraform apply` passou o serviço para o plano gratuito (`free-1-1gb`) e ativou a proteção contra exclusão. Os dados foram recarregados pelo ETL a partir do BigQuery.
 
 ### Tecnologias
 
@@ -197,6 +199,7 @@ cp terraform.tfvars.example terraform.tfvars   # nome do projeto no Aiven
 export AIVEN_TOKEN="..."                       # PowerShell: $env:AIVEN_TOKEN="..."
 
 terraform init
+terraform import aiven_pg.obs_stem <projeto>/<serviço>   # só se o serviço já existir
 terraform plan
 terraform apply
 
@@ -232,13 +235,21 @@ Sequência executada pelo script:
 2. **Extrai** do BigQuery os cursos STEM a partir de `ANO_INICIO`
 3. **Trata** os dados (tipos, padronização, nulos)
 4. **Modela** em `dim_municipio`, `dim_curso` e `fato_stem`
-5. Salva a base tratada em CSV (`data/processed/`)
+5. Salva a base tratada em CSV (`data/processed/`). A versão final está compactada em `data/base_tratada.zip`
 6. Executa `sql/01_ddl.sql` e **carrega** as tabelas em uma única transação
 7. **Valida** a carga (contagem de linhas e tamanho do banco)
 
 ### Passo 4 — Validação
 
 Execute as consultas de `sql/02_validacoes.sql` em qualquer cliente PostgreSQL (DBeaver, psql etc.).
+
+### Resultado da carga
+
+- `dim_municipio`: 3.278 linhas · `dim_curso`: 14.344 linhas · `fato_stem`: 659.651 linhas
+- Período: 2015 a 2024 · tamanho do banco: 131 MB
+- 660.043 linhas extraídas − 392 agregadas = 659.651 linhas na fato
+- 10.822 linhas da fato com município "NAO INFORMADO"
+- Participação feminina nas matrículas STEM: 31,1% em 2015 e 27,2% em 2024
 
 
 ## 7. Dashboard analítico — Streamlit
@@ -280,8 +291,8 @@ Para configurar, siga `grafana/README.md` e importe `grafana/dashboards/observat
 
 ## 10. Checklist para a entrega
 
-- [ ] Criar o PostgreSQL no Aiven com `terraform apply` e registrar evidência do `plan/apply`.
-- [ ] Executar ETL e validar contagens e integridade referencial.
+- [x] Criar o PostgreSQL no Aiven com `terraform apply` e registrar evidência do `plan/apply`.
+- [x] Executar ETL e validar contagens e integridade referencial.
 - [ ] Publicar o Streamlit e testar filtros, gráficos e exportação.
 - [ ] Importar o dashboard no Grafana Cloud e validar a conexão PostgreSQL.
 - [ ] Configurar todos os segredos nas plataformas de deploy, sem versioná-los.
