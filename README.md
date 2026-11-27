@@ -140,13 +140,13 @@ erDiagram
 
 O projeto usa três serviços em nuvem, cada um com um papel:
 
-** Google BigQuery: de onde vêm os dados**
-É onde a Base dos Dados publica o Censo. O ETL só faz consultas, nada é gravado lá.
+** Google BigQuery**
+É onde a Base dos Dados publica o Censo. O ETL só faz consultas.
 
-**Google Colab: onde o código roda**
+**Google Colab**
 O ETL em Python é executado no Colab, que já tem o ambiente pronto e se conecta ao BigQuery com a conta Google de quem executa.
 
-**Aiven PostgreSQL: onde os dados ficam**
+**Aiven PostgreSQL**
 O banco de destino, no plano gratuito do Aiven. É aqui que ficam as tabelas tratadas.
 
 ### Terraform
