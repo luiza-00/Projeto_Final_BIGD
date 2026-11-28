@@ -175,6 +175,7 @@ with right:
     st.subheader("Participação nas matrículas por sexo")
     sex_data = pd.DataFrame({"Sexo": ["Feminino", "Masculino"], "Matrículas": [fem, masc]})
     fig = px.pie(sex_data, names="Sexo", values="Matrículas", hole=.45)
+    fig.update_traces(marker=dict(colors=["#D6467E", "#5A1E3D"]), sort=False)
     st.plotly_chart(fig, use_container_width=True)
 
 left, right = st.columns(2)
