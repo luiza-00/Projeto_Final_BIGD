@@ -12,6 +12,7 @@ from sqlalchemy.engine import URL
 ROOT = Path(__file__).resolve().parents[1]
 load_dotenv(ROOT / ".env")
 st.set_page_config(page_title="Observatório STEM", page_icon="🎓", layout="wide")
+px.defaults.color_discrete_sequence = ["#D6467E", "#5A1E3D", "#E07AA3", "#8E2A57"]
 
 
 
