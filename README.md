@@ -69,32 +69,33 @@ Base dos Dados (BigQuery)  →  ETL em Python/Pandas  →  PostgreSQL (Aiven)
 
 O tratamento segue quatro etapas, todas em `etl/etl_stem.py`.
 
-### 1️ -Filtrar na origem
-Em vez de baixar a base inteira, a consulta ao BigQuery já traz **só os cursos STEM de 2015 a 2024**.
-Assim o volume cabe no plano gratuito do banco.
+### Etapa 1 - Filtrar na origem
 
-### 2️ - Limpar e padronizar
-- Área sempre com 2 dígitos (`5` → `05`)
-- Nomes sem espaços extras e em maiúsculas
-- Quantidades vazias mantidas como nulas, porque "não informado" não é zero
-- Municípios inválidos (**11.214 linhas**, código `0`) vão para um registro **"NAO INFORMADO"**, para o curso continuar contando nos totais
+A consulta ao BigQuery já traz só os cursos STEM de 2015 a 2024, em vez da base inteira. Assim o volume cabe no plano gratuito do banco.
 
-### 3️ - Resolver as repetições
-Ao conferir a primeira carga, vimos **660 mil linhas extraídas para só 99 mil cursos/ano**. Investigamos e encontramos duas causas:
+### Etapa 2 - Limpar e padronizar
 
-- **O dicionário de códigos tinha linhas repetidas**, e isso duplicava cursos na junção. Corrigimos agrupando o dicionário antes.
-- **Cursos EAD aparecem uma vez por polo.** Um curso de 2022 tinha 441 linhas, uma por município, cada uma com parte dos alunos.
+- O código da área fica sempre com 2 dígitos (`5` vira `05`).
+- Os nomes ficam em maiúsculas e sem espaços sobrando.
+- Quantidades vazias continuam vazias (nulas). Vazio quer dizer "não informado", e não zero.
+- As 11.214 linhas com município inválido (código `0` ou fora do diretório do IBGE) vão para um município "NAO INFORMADO". Assim o curso continua entrando nos totais.
 
-Por isso **mantivemos todas as linhas**: cada registro passou a ser **curso × município × ano**.
-As 392 linhas que ainda repetiam a mesma combinação tiveram as quantidades somadas.
+### Etapa 3 - Resolver as repetições
 
-### 4️ - Organizar e carregar
-Os dados são separados em municípios, cursos e indicadores (ver [Modelagem](#3-modelagem)) e carregados no PostgreSQL de uma vez só.
-Se der erro no meio, nada é gravado e o banco continua como estava.
+Na primeira carga, a extração trouxe 660 mil linhas, mas só existiam cerca de 99 mil combinações de curso e ano. Fomos atrás do motivo e achamos dois:
+
+- O dicionário de códigos tinha mais de uma linha para o mesmo código, e isso repetia cursos na junção. Agrupamos o dicionário antes de juntar.
+- Os cursos EAD aparecem uma vez para cada polo. Um curso de 2022, por exemplo, tinha 441 linhas, uma por município, cada uma com parte dos alunos.
+
+Por isso mantivemos todas as linhas, e cada registro passou a ser um curso, em um município, em um ano. Sobraram 392 linhas repetidas nessa combinação, e somamos as quantidades delas.
+
+### Etapa 4 - Organizar e carregar
+
+Os dados são separados em três tabelas (municípios, cursos e indicadores, ver [Modelagem](#3-modelagem)) e carregados no PostgreSQL de uma vez só. Se der erro no meio da carga, nada é gravado e o banco fica como estava.
+
 ## 3. Modelagem
 
-Foi adotado um **esquema estrela** (modelo dimensional), adequado para consultas analíticas
-de agregação por tempo, local e área, que é o uso previsto nas próximas fases. (feito com mermaid)
+Usamos um esquema estrela: uma tabela central com os números e duas tabelas em volta com as descrições. Esse formato facilita somar os dados por ano, estado e área, que é o tipo de análise que vamos fazer nas próximas fases. O diagrama abaixo foi feito em Mermaid.
 
 ```mermaid
 erDiagram
@@ -130,72 +131,59 @@ erDiagram
     }
 ```
 
-- **dim_municipio**: dados geográficos dos municípios onde os cursos são ofertados.
-- **dim_curso**: identificação e classificação dos cursos STEM.
-- **fato_stem**: indicadores quantitativos, um registro por curso, município e ano. Somando os municípios, obtém-se o total do curso no ano.
-- O DDL (`sql/01_ddl.sql`) define tipos, chaves primárias, chaves estrangeiras e índices,
-  em vez de deixar o Pandas criar as tabelas automaticamente.
+- `dim_municipio`: nome e estado dos municípios onde os cursos são oferecidos.
+- `dim_curso`: nome, instituição e área de cada curso.
+- `fato_stem`: os números (ingressantes, matrículas, concluintes etc.) de cada curso, em cada município, em cada ano. Para ter o total de um curso no ano, é só somar os municípios.
+
+As tabelas são criadas pelo arquivo `sql/01_ddl.sql`, que define os tipos das colunas, as chaves e os índices. Preferimos isso a deixar o Pandas criar as tabelas sozinho.
 
 ## 4. Infraestrutura
 
-O projeto usa três serviços em nuvem, cada um com um papel:
+O projeto usa três serviços:
 
-** Google BigQuery**
-É onde a Base dos Dados publica o Censo. O ETL só faz consultas.
-
-**Google Colab**
-O ETL em Python é executado no Colab, que já tem o ambiente pronto e se conecta ao BigQuery com a conta Google de quem executa.
-
-**Aiven PostgreSQL**
-O banco de destino, no plano gratuito do Aiven. É aqui que ficam as tabelas tratadas.
+- **Google BigQuery:** onde a Base dos Dados publica o Censo. O ETL só faz consultas lá.
+- **Google Colab:** onde o ETL em Python roda. Ele se conecta ao BigQuery com a conta Google de quem está executando.
+- **Aiven PostgreSQL:** o banco onde ficam as tabelas tratadas, no plano gratuito.
 
 ### Terraform
 
-O banco PostgreSQL é criado pelo Terraform, a partir da pasta `infra/terraform/`:
+O banco é gerenciado pelo Terraform, na pasta `infra/terraform/`. O recurso `aiven_pg.obs_stem` representa o PostgreSQL no Aiven (projeto `bigdata-hm`, serviço `pg-3c0071ef`, plano `free-1-1gb`), com proteção contra exclusão. No final, o Terraform mostra o host, a porta, o usuário e a senha do banco (a senha fica marcada como sensível).
 
-- **`aiven_pg.obs_stem`**: o serviço PostgreSQL no Aiven (serviço `obsstem`, plano gratuito), com proteção contra exclusão acidental
-- **Outputs:** host, porta, usuário e senha (marcada como sensível), usados para configurar o ETL e o dashboard
+A pasta `infra/terraform/gcp/` é opcional. Ela ativa a API do BigQuery e cria uma conta de serviço que só pode fazer consultas, para usar se um dia o ETL rodar de forma automática. Deixamos separada para o banco poder ser criado só com o token do Aiven.
 
-A pasta `infra/terraform/gcp/` é opcional e separada: ativa a API do BigQuery e cria uma conta de serviço só com permissão de consulta, para execuções automáticas no futuro. Fica separada para que o banco possa ser criado apenas com o token do Aiven.
-
-O primeiro banco do projeto foi criado pelo painel do Aiven em um período de teste, que expirou. O banco atual (`bigdata-hm/pg-3c0071ef`) foi incorporado ao Terraform com `terraform import`, e o `terraform apply` passou o serviço para o plano gratuito (`free-1-1gb`) e ativou a proteção contra exclusão. Os dados foram recarregados pelo ETL a partir do BigQuery.
+O primeiro banco do projeto foi criado pelo painel do Aiven, num período de teste que expirou. O banco atual foi trazido para o Terraform com `terraform import`, e o `terraform apply` mudou ele para o plano gratuito e ligou a proteção contra exclusão. Depois, rodamos o ETL de novo para recarregar os dados.
 
 ### Tecnologias
 
-- **Infraestrutura:** Terraform 1.5+, com o provider do Aiven (e o do Google, na pasta opcional `gcp/`)
-- **Código:** Python 3.10+, com Pandas para o tratamento e SQLAlchemy/psycopg2 para o banco
+- **Infraestrutura:** Terraform 1.5+ com o provider do Aiven (e o do Google, na pasta opcional `gcp/`)
+- **Código:** Python 3.10+, Pandas no tratamento e SQLAlchemy/psycopg2 para falar com o banco
 - **Dados:** biblioteca `google-cloud-bigquery` para as consultas
 
 ## 5. Segurança das informações
 
-Nenhuma credencial é versionada. A estratégia adotada foi:
+Nenhuma senha ou token fica no repositório. O que fizemos:
 
-1. **Variáveis de ambiente**: o ETL lê host, porta, usuário e senha do banco de um arquivo `.env`
-   local (ignorado pelo Git) ou, no Colab, do painel **Secrets**. O repositório contém apenas o
-   modelo `.env.example`, sem valores reais.
-2. **Sem chave JSON no Colab**: a autenticação no Google é feita com `auth.authenticate_user()`
-   (conta do próprio usuário). Localmente, usa-se `gcloud auth application-default login`.
-3. **Terraform**: o token do Aiven é lido da variável de ambiente `AIVEN_TOKEN`. Os arquivos
-   `terraform.tfvars` e `*.tfstate` (que contêm a senha do banco) estão no `.gitignore`.
-   A senha é exposta apenas como *output* `sensitive`. A chave da service account não é gerada
-   pelo Terraform para não ficar gravada no state.
-4. **Conexão criptografada**: o ETL conecta ao PostgreSQL com `sslmode=require`.
-5. **Privilégio mínimo**: a service account do ETL só pode executar consultas.
-6. **`termination_protection`** ativo no banco, contra exclusão acidental.
+1. **Senhas fora do código.** O ETL e o dashboard leem os dados do banco de um arquivo `.env` (que o `.gitignore` impede de ir para o GitHub) ou dos Secrets do Colab e do Streamlit. No repositório fica só o `.env.example`, que tem os nomes das variáveis, sem os valores.
+2. **Login no Google sem arquivo de chave.** No Colab, o acesso ao BigQuery é feito com a conta Google de quem executa.
+3. **Terraform.** O token do Aiven é passado pela variável de ambiente `AIVEN_TOKEN`. Os arquivos `terraform.tfvars` e `*.tfstate`, que guardam a senha do banco, estão no `.gitignore`.
+4. **Conexão criptografada.** A conexão com o banco usa SSL (`sslmode=require`).
+5. **Proteção contra exclusão** ligada no banco (`termination_protection`).
+
+Uma versão antiga do script tinha a senha do banco escrita no código. Trocamos a senha, tiramos ela do código e apagamos o histórico do Git onde ela aparecia.
 
 ## 6. Execução
 
 ### Pré-requisitos
 
-- Conta no Aiven (plano gratuito) com token de API
-- Projeto no Google Cloud com a API do BigQuery ativada (o modo gratuito Sandbox é suficiente)
-- Terraform ≥ 1.5 e, para execução local do ETL, Python ≥ 3.10
+- Conta no Aiven (plano gratuito) e um token de API
+- Projeto no Google Cloud com a API do BigQuery ativada (o modo gratuito Sandbox serve)
+- Terraform 1.5+ e, para rodar o ETL no computador, Python 3.10+
 
 ### Passo 1 — Infraestrutura
 
 ```bash
 cd infra/terraform
-cp terraform.tfvars.example terraform.tfvars   # nome do projeto no Aiven
+cp terraform.tfvars.example terraform.tfvars   # nome do projeto e do serviço no Aiven
 export AIVEN_TOKEN="..."                       # PowerShell: $env:AIVEN_TOKEN="..."
 
 terraform init
@@ -209,15 +197,17 @@ terraform output -raw pg_password      # senha (vai para os Secrets)
 
 ### Passo 2 — Configuração
 
+Para rodar no computador, copie o modelo e preencha com os dados do banco:
+
 ```bash
-cp .env.example .env    
+cp .env.example .env
 pip install -r etl/requirements.txt
 ```
 
-No **Google Colab**, cadastre as chaves do `.env.example` no painel **Secrets** e execute:
+No Colab, cadastre as mesmas variáveis do `.env.example` no painel Secrets (ícone de chave) e rode:
 
 ```python
-!git clone https://github.com/luiza-00/Projeto_Final_BIGD.git
+!git clone https://github.com/BIG-D26/Projeto_Final_BIGD.git
 %cd Projeto_Final_BIGD
 !pip install -q -r etl/requirements.txt
 %run etl/etl_stem.py
@@ -229,36 +219,35 @@ No **Google Colab**, cadastre as chaves do `.env.example` no painel **Secrets** 
 python etl/etl_stem.py
 ```
 
-Sequência executada pelo script:
+O script faz, nesta ordem:
 
 1. Lê as configurações (`.env` ou Secrets do Colab)
-2. **Extrai** do BigQuery os cursos STEM a partir de `ANO_INICIO`
-3. **Trata** os dados (tipos, padronização, nulos)
-4. **Modela** em `dim_municipio`, `dim_curso` e `fato_stem`
-5. Salva a base tratada em CSV (`data/processed/`). A versão final está compactada em `data/base_tratada.zip`
-6. Executa `sql/01_ddl.sql` e **carrega** as tabelas em uma única transação
-7. **Valida** a carga (contagem de linhas e tamanho do banco)
+2. Busca no BigQuery os cursos STEM a partir de `ANO_INICIO`
+3. Limpa e padroniza os dados
+4. Separa em `dim_municipio`, `dim_curso` e `fato_stem`
+5. Salva a base tratada em CSV (`data/processed/`). A versão final está em `data/base_tratada.zip`
+6. Cria as tabelas com `sql/01_ddl.sql` e carrega tudo de uma vez
+7. Conta as linhas no banco para conferir a carga
 
 ### Passo 4 — Validação
 
-Execute as consultas de `sql/02_validacoes.sql` em qualquer cliente PostgreSQL (DBeaver, psql etc.).
+As consultas de conferência estão em `sql/02_validacoes.sql` e podem ser rodadas em qualquer cliente PostgreSQL (DBeaver, psql etc.).
 
 ### Resultado da carga
 
 - `dim_municipio`: 3.278 linhas · `dim_curso`: 14.344 linhas · `fato_stem`: 659.651 linhas
 - Período: 2015 a 2024 · tamanho do banco: 131 MB
-- 660.043 linhas extraídas − 392 agregadas = 659.651 linhas na fato
+- 660.043 linhas extraídas − 392 somadas = 659.651 linhas na fato
 - 10.822 linhas da fato com município "NAO INFORMADO"
 - Participação feminina nas matrículas STEM: 31,1% em 2015 e 27,2% em 2024
 
-
 ## 7. Dashboard analítico — Streamlit
 
-O Streamlit é a interface principal para exploração dos indicadores. O painel consulta o PostgreSQL da Aiven e oferece filtros por período, UF, área STEM, sexo e métrica. Exibe quatro KPIs, evolução temporal, participação por sexo, distribuição por área e UF, tabela detalhada e exportação CSV.
+O dashboard em Streamlit é onde os dados são explorados. Ele lê o PostgreSQL e tem filtros por período, estado, área STEM, sexo e métrica. Mostra quatro indicadores no topo, a evolução por ano, a divisão por sexo, a distribuição por área e por estado, uma tabela detalhada e um botão para baixar os dados em CSV.
 
 ### Executar localmente
 
-Instale as dependências do dashboard e configure as mesmas variáveis `PG_*` do `.env.example` no arquivo `.env` da raiz do projeto:
+Instale as dependências e preencha o `.env` na raiz do projeto com as variáveis `PG_*`:
 
 ```bash
 pip install -r dashboard/requirements.txt
@@ -267,24 +256,22 @@ streamlit run dashboard/app.py
 
 ### Publicar no Streamlit Community Cloud
 
-1. Publique o repositório no GitHub sem o arquivo `.env`.
-2. Crie uma aplicação apontando para `dashboard/app.py`.
-3. Configure em **App settings → Secrets** as variáveis `PG_HOST`, `PG_PORT`, `PG_DATABASE`, `PG_USER` e `PG_PASSWORD`.
-4. Use `dashboard/requirements.txt` como arquivo de dependências, se solicitado.
-5. Verifique a conectividade SSL com o Aiven.
+1. Em share.streamlit.io, crie um app apontando para `dashboard/app.py` deste repositório.
+2. Em **Settings → Secrets**, cadastre `PG_HOST`, `PG_PORT`, `PG_DATABASE`, `PG_USER` e `PG_PASSWORD`.
+3. Como o repositório está numa organização do GitHub, o acesso do Streamlit precisa ser liberado pela organização antes do primeiro deploy.
 
 ## 8. Monitoramento — Grafana
 
-O Grafana é complementar ao Streamlit: acompanha volume de registros, quantidade de cursos, ano mais recente carregado, tamanho do banco, matrículas por sexo/ano e validações de volume. Não replica a análise social do Streamlit.
+O Grafana complementa o Streamlit. Ele acompanha a saúde do banco: quantidade de registros e de cursos, último ano carregado, tamanho do banco e matrículas por sexo e ano. A análise dos dados em si fica no Streamlit.
 
-Para configurar, siga `grafana/README.md` e importe `grafana/dashboards/observatorio-stem.json` em uma instância Grafana Cloud. Cadastre o PostgreSQL Aiven como fonte de dados com SSL obrigatório e associe essa fonte ao dashboard. As credenciais devem ser cadastradas no cofre/configuração do Grafana, nunca no JSON versionado.
+Para configurar, siga o `grafana/README.md` e importe o `grafana/dashboards/observatorio-stem.json` no Grafana Cloud. O PostgreSQL entra como fonte de dados, com SSL obrigatório. As credenciais ficam na configuração do Grafana, nunca no JSON do repositório.
 
 ## 9. Escopo analítico e limitações dos dados
 
-**Atenção:** a tabela `curso` utilizada neste repositório disponibiliza os indicadores agregados por sexo, curso, município e ano. O esquema atual não contém raça/cor nem identificadores de coorte/estudante. Portanto:
+A tabela `curso` traz os números somados por curso, município, ano e sexo. Ela não tem raça/cor nem acompanha os mesmos alunos ao longo dos anos. Isso significa que:
 
-- O painel permite analisar participação e distribuição por sexo, área, UF e período.
-- Não é possível produzir cruzamentos de gênero × raça/cor (ODS 18) com a carga atual. O recorte atual contribui para a discussão de igualdade de gênero (ODS 5).
-- Não é metodologicamente correto chamar a razão entre concluintes e ingressantes no mesmo ano de taxa de evasão: são grupos de pessoas diferentes.
-- Para calcular evasão/retenção de fato, será necessário incorporar dados longitudinais ou coortes que permitam acompanhar ingressantes ao longo dos anos, com metodologia documentada.
-- Os KPIs atuais são descritivos e não devem ser interpretados como evidência causal.
+- Dá para analisar participação e distribuição por sexo, área, estado e período.
+- Não dá para cruzar gênero com raça/cor (ODS 18) com os dados atuais. O recorte atual ajuda na discussão sobre igualdade de gênero (ODS 5).
+- Dividir concluintes por ingressantes no mesmo ano não é taxa de evasão, porque são grupos de pessoas diferentes.
+- Para calcular evasão ou retenção de verdade, seria preciso usar dados que acompanhem cada turma ao longo dos anos.
+- Os indicadores são descritivos: mostram o que acontece, mas não explicam as causas.
