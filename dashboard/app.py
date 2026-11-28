@@ -139,8 +139,8 @@ k3.metric("Participação feminina", f"{share:.1f}%")
 k4.metric("Cursos no recorte", f"{filtered.id_curso.nunique():,}".replace(",", "."))
 
 st.divider()
-st.subheader("Regra de negócio RN14: participação feminina nas matrículas")
-st.caption("RN14: matrículas femininas ÷ matrículas totais × 100. RN17: mesmo critério para todos os anos e áreas do recorte.")
+st.subheader("Participação feminina nas matrículas")
+st.caption("Matrículas femininas ÷ matrículas totais × 100, com o mesmo critério para todos os anos e áreas do recorte.")
 cols_mat = ["qtd_matriculas_feminino", "qtd_matriculas_masculino"]
 rn14 = filtered.groupby(["ano", "nome_area_geral"], as_index=False)[cols_mat].sum()
 rn14_total = rn14.groupby("ano", as_index=False)[cols_mat].sum().assign(nome_area_geral="Total STEM")
@@ -157,8 +157,10 @@ with left:
 with right:
     st.markdown("**Peso de cada área nas matrículas**")
     peso = rn14[rn14.nome_area_geral != "Total STEM"]
-    fig = px.bar(peso, x="ano", y="matriculas", color="nome_area_geral", barnorm="percent",
+    fig = px.bar(peso, x="ano", y="matriculas", color="nome_area_geral",
                  labels={"ano": "Ano", "matriculas": "Participação nas matrículas (%)", "nome_area_geral": "Área"})
+    fig.update_layout(barnorm="percent")
+    fig.update_yaxes(ticksuffix="%")
     st.plotly_chart(fig, use_container_width=True)
 
 st.divider()
