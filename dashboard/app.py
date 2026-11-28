@@ -154,7 +154,7 @@ with left:
     fig = px.line(rn14, x="ano", y="participacao_feminina", color="nome_area_geral", markers=True,
                   labels={"ano": "Ano", "participacao_feminina": "Participação feminina (%)", "nome_area_geral": "Área"})
     fig.update_yaxes(ticksuffix="%")
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width="stretch")
 with right:
     st.markdown("**Peso de cada área nas matrículas**")
     peso = rn14[rn14.nome_area_geral != "Total STEM"]
@@ -162,7 +162,7 @@ with right:
                  labels={"ano": "Ano", "matriculas": "Participação nas matrículas (%)", "nome_area_geral": "Área"})
     fig.update_layout(barnorm="percent")
     fig.update_yaxes(ticksuffix="%")
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width="stretch")
 
 st.divider()
 left, right = st.columns(2)
@@ -170,29 +170,29 @@ with left:
     st.subheader(f"Evolução — {metric_label}")
     trend = filtered.groupby("ano", as_index=False)["valor_selecionado"].sum()
     fig = px.line(trend, x="ano", y="valor_selecionado", markers=True, labels={"ano": "Ano", "valor_selecionado": "Quantidade"})
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width="stretch")
 with right:
     st.subheader("Participação nas matrículas por sexo")
     sex_data = pd.DataFrame({"Sexo": ["Feminino", "Masculino"], "Matrículas": [fem, masc]})
     fig = px.pie(sex_data, names="Sexo", values="Matrículas", hole=.45)
     fig.update_traces(marker=dict(colors=["#D6467E", "#5A1E3D"]), sort=False)
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width="stretch")
 
 left, right = st.columns(2)
 with left:
     st.subheader("Distribuição por área STEM")
     area_data = filtered.groupby("nome_area_geral", as_index=False)["valor_selecionado"].sum().sort_values("valor_selecionado", ascending=False)
     fig = px.bar(area_data, x="nome_area_geral", y="valor_selecionado", labels={"nome_area_geral": "Área", "valor_selecionado": "Quantidade"})
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width="stretch")
 with right:
     st.subheader("Distribuição por UF")
     uf_data = filtered[filtered.sigla_uf != "NI"].groupby("sigla_uf", as_index=False)["valor_selecionado"].sum().sort_values("valor_selecionado", ascending=False).head(15)
     fig = px.bar(uf_data, x="sigla_uf", y="valor_selecionado", labels={"sigla_uf": "UF", "valor_selecionado": "Quantidade"})
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width="stretch")
 
 st.subheader("Detalhamento por curso e município")
 detail = (filtered.groupby(["ano", "sigla_uf", "nome_municipio", "nome_area_geral", "nome_curso"], as_index=False)["valor_selecionado"].sum().sort_values("valor_selecionado", ascending=False))
-st.dataframe(detail, use_container_width=True, hide_index=True)
+st.dataframe(detail, width="stretch", hide_index=True)
 st.download_button("Baixar dados filtrados (CSV)", detail.to_csv(index=False).encode("utf-8-sig"), "observatorio_stem_filtrado.csv", "text/csv")
 
 with st.expander("Limites metodológicos e interpretação"):
