@@ -82,7 +82,7 @@ A consulta ao BigQuery já traz só os cursos STEM de 2015 a 2024, em vez da bas
 
 ### Etapa 3 - Resolver as repetições
 
-Na primeira carga, a extração trouxe 660 mil linhas, mas só existiam cerca de 99 mil combinações de curso e ano. Fomos atrás do motivo e achamos dois:
+Na primeira carga, a extração trouxe 660 mil linhas, mas só existiam cerca de 99 mil combinações de curso e ano.
 
 - O dicionário de códigos tinha mais de uma linha para o mesmo código, e isso repetia cursos na junção. Agrupamos o dicionário antes de juntar.
 - Os cursos EAD aparecem uma vez para cada polo. Um curso de 2022, por exemplo, tinha 441 linhas, uma por município, cada uma com parte dos alunos.
@@ -147,18 +147,14 @@ O projeto usa três serviços:
 
 ### Terraform
 
-O banco é gerenciado pelo Terraform, na pasta `infra/terraform/`. O recurso `aiven_pg.obs_stem` representa o PostgreSQL no Aiven (projeto `bigdata-hm`, serviço `pg-3c0071ef`, plano `free-1-1gb`), com proteção contra exclusão. No final, o Terraform mostra o host, a porta, o usuário e a senha do banco (a senha fica marcada como sensível).
+O banco é gerenciado pelo Terraform, na pasta infra/terraform/. O recurso aiven_pg.obs_stem representa o PostgreSQL no Aiven (projeto bigdata-hm, serviço pg-3c0071ef, plano free-1-1gb), com proteção contra exclusão. No final, o Terraform mostra o host, a porta, o usuário e a senha do banco (a senha fica marcada como sensível).
 
-A pasta `infra/terraform/gcp/` é opcional. Ela ativa a API do BigQuery e cria uma conta de serviço que só pode fazer consultas, para usar se um dia o ETL rodar de forma automática. Deixamos separada para o banco poder ser criado só com o token do Aiven.
+A pasta infra/terraform/gcp/ é opcional. Ela ativa a API do BigQuery e cria uma conta de serviço que só pode fazer consultas, para usar se um dia o ETL rodar de forma automática. Deixamos separada para o banco poder ser criado só com o token do Aiven.
 
-O primeiro banco do projeto foi criado pelo painel do Aiven, num período de teste que expirou. O banco atual foi trazido para o Terraform com `terraform import`, e o `terraform apply` mudou ele para o plano gratuito e ligou a proteção contra exclusão. Depois, rodamos o ETL de novo para recarregar os dados.
-
-### Tecnologias
-
-- **Infraestrutura:** Terraform 1.5+ com o provider do Aiven (e o do Google, na pasta opcional `gcp/`)
-- **Código:** Python 3.10+, Pandas no tratamento e SQLAlchemy/psycopg2 para falar com o banco
-- **Dados:** biblioteca `google-cloud-bigquery` para as consultas
-
+Tecnologias
+Infraestrutura: Terraform 1.5+ com o provider do Aiven (e o do Google, na pasta opcional gcp/)
+Código: Python 3.10+, Pandas no tratamento e SQLAlchemy/psycopg2 para falar com o banco
+Dados: biblioteca google-cloud-bigquery para as consultas
 ## 5. Segurança das informações
 
 Nenhuma senha ou token fica no repositório. O que fizemos:
