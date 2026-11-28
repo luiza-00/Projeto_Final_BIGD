@@ -70,6 +70,8 @@ def load_data():
     """)
     with engine().connect() as conn:
         df = pd.read_sql(query, conn)
+    nomes = {"05": "Ciências e Matemática", "06": "Computação e TIC", "07": "Engenharia"}
+    df["nome_area_geral"] = df["id_area_geral"].map(nomes).fillna(df["nome_area_geral"])
     for col in ["sigla_uf", "nome_municipio", "id_area_geral", "nome_area_geral", "nome_curso"]:
         df[col] = df[col].astype("string[pyarrow]")
     return df
@@ -151,20 +153,26 @@ rn14_total = rn14.groupby("ano", as_index=False)[cols_mat].sum().assign(nome_are
 rn14 = pd.concat([rn14, rn14_total], ignore_index=True)
 rn14["matriculas"] = rn14.qtd_matriculas_feminino + rn14.qtd_matriculas_masculino
 rn14["participacao_feminina"] = 100 * rn14.qtd_matriculas_feminino / rn14.matriculas.where(rn14.matriculas > 0)
+CORES_AREA = {"Ciências e Matemática": "#F09ABA", "Computação e TIC": "#D6467E", "Engenharia": "#8E2A57", "Total STEM": "#3D1229"}
+LEGENDA = dict(orientation="h", yanchor="top", y=-0.2, x=0, title_text="")
 left, right = st.columns(2)
 with left:
     st.markdown("**Participação feminina por ano e área**")
-    fig = px.line(rn14, x="ano", y="participacao_feminina", color="nome_area_geral", markers=True,
+    fig = px.line(rn14, x="ano", y="participacao_feminina", color="nome_area_geral", markers=True, color_discrete_map=CORES_AREA,
                   labels={"ano": "Ano", "participacao_feminina": "Participação feminina (%)", "nome_area_geral": "Área"})
+    fig.update_traces(selector=dict(name="Total STEM"), line=dict(width=4, dash="dash"))
     fig.update_yaxes(ticksuffix="%")
+    fig.update_xaxes(dtick=1)
+    fig.update_layout(legend=LEGENDA)
     st.plotly_chart(fig, width="stretch")
 with right:
     st.markdown("**Peso de cada área nas matrículas**")
     peso = rn14[rn14.nome_area_geral != "Total STEM"]
-    fig = px.bar(peso, x="ano", y="matriculas", color="nome_area_geral",
+    fig = px.bar(peso, x="ano", y="matriculas", color="nome_area_geral", color_discrete_map=CORES_AREA,
                  labels={"ano": "Ano", "matriculas": "Participação nas matrículas (%)", "nome_area_geral": "Área"})
-    fig.update_layout(barnorm="percent")
+    fig.update_layout(barnorm="percent", legend=LEGENDA)
     fig.update_yaxes(ticksuffix="%")
+    fig.update_xaxes(dtick=1)
     st.plotly_chart(fig, width="stretch")
 
 st.divider()
