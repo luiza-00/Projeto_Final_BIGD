@@ -56,7 +56,7 @@ def engine():
 def load_data():
     query = text("""
         SELECT f.ano, m.sigla_uf, m.nome_municipio,
-               c.id_area_geral, c.nome_area_geral, c.nome_curso,
+               c.id_curso, c.id_area_geral, c.nome_area_geral, c.nome_curso,
                f.qtd_ingressantes_feminino, f.qtd_ingressantes_masculino,
                f.qtd_matriculas_feminino, f.qtd_matriculas_masculino,
                f.qtd_concluintes_feminino, f.qtd_concluintes_masculino,
@@ -102,6 +102,10 @@ if selected_ufs:
 if selected_areas:
     filtered = filtered[filtered.nome_area_geral.isin(selected_areas)]
 
+if filtered.empty:
+    st.info("Não há dados para o recorte selecionado. Ajuste os filtros na lateral.")
+    st.stop()
+
 pairs = {
     "Matrículas": ("qtd_matriculas_feminino", "qtd_matriculas_masculino"),
     "Ingressantes": ("qtd_ingressantes_feminino", "qtd_ingressantes_masculino"),
@@ -132,7 +136,30 @@ k1, k2, k3, k4 = st.columns(4)
 k1.metric("Matrículas (F + M)", f"{total:,.0f}".replace(",", "."))
 k2.metric("Matrículas femininas", f"{fem:,.0f}".replace(",", "."))
 k3.metric("Participação feminina", f"{share:.1f}%")
-k4.metric("Cursos no recorte", f"{filtered.nome_curso.nunique():,}".replace(",", "."))
+k4.metric("Cursos no recorte", f"{filtered.id_curso.nunique():,}".replace(",", "."))
+
+st.divider()
+st.subheader("Regra de negócio RN14: participação feminina nas matrículas")
+st.caption("RN14: matrículas femininas ÷ matrículas totais × 100. RN17: mesmo critério para todos os anos e áreas do recorte.")
+cols_mat = ["qtd_matriculas_feminino", "qtd_matriculas_masculino"]
+rn14 = filtered.groupby(["ano", "nome_area_geral"], as_index=False)[cols_mat].sum()
+rn14_total = rn14.groupby("ano", as_index=False)[cols_mat].sum().assign(nome_area_geral="Total STEM")
+rn14 = pd.concat([rn14, rn14_total], ignore_index=True)
+rn14["matriculas"] = rn14.qtd_matriculas_feminino + rn14.qtd_matriculas_masculino
+rn14["participacao_feminina"] = 100 * rn14.qtd_matriculas_feminino / rn14.matriculas.where(rn14.matriculas > 0)
+left, right = st.columns(2)
+with left:
+    st.markdown("**Participação feminina por ano e área**")
+    fig = px.line(rn14, x="ano", y="participacao_feminina", color="nome_area_geral", markers=True,
+                  labels={"ano": "Ano", "participacao_feminina": "Participação feminina (%)", "nome_area_geral": "Área"})
+    fig.update_yaxes(ticksuffix="%")
+    st.plotly_chart(fig, use_container_width=True)
+with right:
+    st.markdown("**Peso de cada área nas matrículas**")
+    peso = rn14[rn14.nome_area_geral != "Total STEM"]
+    fig = px.bar(peso, x="ano", y="matriculas", color="nome_area_geral", barnorm="percent",
+                 labels={"ano": "Ano", "matriculas": "Participação nas matrículas (%)", "nome_area_geral": "Área"})
+    st.plotly_chart(fig, use_container_width=True)
 
 st.divider()
 left, right = st.columns(2)
