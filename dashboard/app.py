@@ -53,7 +53,7 @@ def engine():
     return get_engine()
 
 
-@st.cache_data(ttl=300, show_spinner="Consultando o PostgreSQL...")
+@st.cache_resource(ttl=3600, show_spinner="Consultando o PostgreSQL...")
 def load_data():
     query = text("""
         SELECT f.ano, m.sigla_uf, m.nome_municipio,
@@ -69,7 +69,10 @@ def load_data():
         JOIN dim_curso c ON c.id_curso = f.id_curso
     """)
     with engine().connect() as conn:
-        return pd.read_sql(query, conn)
+        df = pd.read_sql(query, conn)
+    for col in ["sigla_uf", "nome_municipio", "id_area_geral", "nome_area_geral", "nome_curso"]:
+        df[col] = df[col].astype("string[pyarrow]")
+    return df
 
 
 st.title("🎓 Observatório de Evasão e Retenção em Cursos STEM")
